@@ -7,17 +7,27 @@ import time
 import psycopg2
 from psycopg2 import sql
 
+# Add parent directory to path to import from src
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+try:
+    from src.core.database import get_database_params
+except ImportError:
+    # Fallback if module not available
+    def get_database_params():
+        return {
+            'host': os.getenv('POSTGRES_HOST', 'localhost'),
+            'port': os.getenv('POSTGRES_PORT', '5432'),
+            'database': os.getenv('POSTGRES_DB', 'dean_production'),
+            'user': os.getenv('POSTGRES_USER', 'dean_prod'),
+            'password': os.getenv('POSTGRES_PASSWORD', 'postgres')
+        }
+
 def test_database_connection():
     """Test connection to the database and verify initialization"""
     
-    # Get connection parameters from environment
-    db_params = {
-        'host': os.getenv('POSTGRES_HOST', 'localhost'),
-        'port': os.getenv('POSTGRES_PORT', '5432'),
-        'database': os.getenv('POSTGRES_DB', 'dean_production'),
-        'user': os.getenv('POSTGRES_USER', 'dean_prod'),
-        'password': os.getenv('POSTGRES_PASSWORD', 'postgres')
-    }
+    # Get connection parameters from centralized configuration
+    db_params = get_database_params()
     
     max_retries = 5
     retry_delay = 2
