@@ -9,6 +9,11 @@ credentials/
 *.key
 *.crt
 \!localhost.crt.example
+generated_secrets.txt
+generate_secrets.ps1
+configure_env.ps1
+setup_environment.ps1
+setup_environment.sh
 
 # Data and logs
 data/
@@ -83,6 +88,7 @@ HANDOVER_DOCUMENT.md
 PROJECT_SUMMARY.md
 RELEASE_NOTES_v*.md
 REPOSITORY_FINAL_REVIEW.md
+ENVIRONMENT_SETUP_COMPLETE.md
 test_auth_simple.py
 test_unified_server.py
 verify_auth_files.py
