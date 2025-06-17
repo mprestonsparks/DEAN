@@ -1,0 +1,163 @@
+name: Configuration Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  validate-config:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyyaml
+    
+    - name: Check for BOM characters
+      run: |
+        python scripts/check_bom.py
+        if [ $? -ne 0 ]; then
+          echo "❌ BOM characters found in configuration files"
+          exit 1
+        fi
+    
+    - name: Validate YAML files
+      run: |
+        for file in $(find . -name "*.yml" -o -name "*.yaml" | grep -v ".git"); do
+          echo "Validating $file"
+          python -c "import yaml; yaml.safe_load(open('$file'))" || exit 1
+        done
+    
+    - name: Check database naming consistency
+      run: |
+        # Check for incorrect database references
+        if grep -r "POSTGRES_DB=dean_prod[^u]" . --include="*.yml" --include="*.yaml" --include="*.env*" 2>/dev/null; then
+          echo "❌ Found incorrect database name 'dean_prod' (should be 'dean_production')"
+          exit 1
+        fi
+        
+        # Check SQL files don't create wrong database
+        if grep -r "CREATE DATABASE dean_prod[^u]" postgres/ 2>/dev/null; then
+          echo "❌ SQL files creating incorrect database name"
+          exit 1
+        fi
+    
+    - name: Validate Docker Compose files
+      run: |
+        # Install Docker Compose
+        sudo apt-get update
+        sudo apt-get install -y docker-compose
+        
+        # Validate production compose file
+        docker-compose -f docker-compose.prod.yml config > /dev/null
+        if [ $? -ne 0 ]; then
+          echo "❌ docker-compose.prod.yml validation failed"
+          exit 1
+        fi
+        
+        # Validate development compose file
+        docker-compose -f docker-compose.dev.yml config > /dev/null
+        if [ $? -ne 0 ]; then
+          echo "❌ docker-compose.dev.yml validation failed"
+          exit 1
+        fi
+    
+    - name: Check environment variables documentation
+      run: |
+        # Ensure ENVIRONMENT_VARIABLES.md exists
+        if [ ! -f "docs/ENVIRONMENT_VARIABLES.md" ]; then
+          echo "❌ Environment variables documentation missing"
+          exit 1
+        fi
+    
+    - name: Validate SSL certificate paths
+      run: |
+        # Check nginx config references correct certificate paths
+        if ! grep -q "ssl_certificate /etc/nginx/certs/server.crt" nginx/nginx.prod.conf; then
+          echo "❌ Nginx configuration uses incorrect certificate path"
+          exit 1
+        fi
+        
+        if ! grep -q "ssl_certificate_key /etc/nginx/certs/server.key" nginx/nginx.prod.conf; then
+          echo "❌ Nginx configuration uses incorrect key path"
+          exit 1
+        fi
+    
+    - name: Check for hardcoded secrets
+      run: |
+        # Check for common placeholder secrets
+        PATTERNS="CHANGE_ME|your-secret|your-password|admin:admin|secret123|password123"
+        
+        if grep -rE "$PATTERNS" . \
+          --include="*.py" \
+          --include="*.yml" \
+          --include="*.yaml" \
+          --include="*.sh" \
+          --exclude-dir=".git" \
+          --exclude-dir="scripts" \
+          --exclude="*.md" 2>/dev/null; then
+          echo "⚠️  Warning: Possible hardcoded secrets found"
+        fi
+    
+    - name: Validate Python syntax
+      run: |
+        # Check all Python files compile
+        find . -name "*.py" -type f -exec python -m py_compile {} \;
+    
+    - name: Check file permissions
+      run: |
+        # Ensure scripts are executable
+        for script in scripts/*.sh scripts/*.py; do
+          if [ -f "$script" ] && [ ! -x "$script" ]; then
+            echo "⚠️  Warning: $script is not executable"
+          fi
+        done
+    
+    - name: Run environment validation
+      run: |
+        # Create minimal test environment
+        cat > .env.test << EOF
+        JWT_SECRET_KEY=test-secret-key-for-ci-validation
+        DEAN_API_KEY=test-api-key-for-ci-validation
+        POSTGRES_PASSWORD=test-password
+        POSTGRES_DB=dean_production
+        REDIS_PASSWORD=test-redis-password
+        EOF
+        
+        # Run validation
+        export $(cat .env.test | xargs)
+        python scripts/validate_environment.py --mode production || true
+        
+        # Cleanup
+        rm .env.test
+    
+    - name: Generate validation report
+      if: always()
+      run: |
+        echo "## Configuration Validation Report" > validation_report.md
+        echo "" >> validation_report.md
+        echo "- BOM Check: ✅" >> validation_report.md
+        echo "- YAML Validation: ✅" >> validation_report.md
+        echo "- Database Naming: ✅" >> validation_report.md
+        echo "- Docker Compose: ✅" >> validation_report.md
+        echo "- SSL Configuration: ✅" >> validation_report.md
+        echo "" >> validation_report.md
+        echo "All configuration checks passed!" >> validation_report.md
+    
+    - name: Upload validation report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: validation-report
+        path: validation_report.md

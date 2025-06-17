@@ -1,0 +1,73 @@
+# Pre-commit hooks for DEAN repository
+# Install with: pre-commit install
+
+repos:
+  # Check for file issues
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-yaml
+        args: ['--unsafe']
+      - id: check-json
+      - id: check-toml
+      - id: check-xml
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+      - id: fix-byte-order-marker
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+
+  # Python specific
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3.10
+
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        args: ['--max-line-length=100', '--ignore=E203,W503']
+
+  # Security checks
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        args: ['-ll', '--skip', 'B101,B601']
+
+  # Custom local hooks
+  - repo: local
+    hooks:
+      - id: check-bom
+        name: Check for BOM characters
+        entry: python scripts/check_bom.py
+        language: python
+        pass_filenames: false
+        always_run: true
+
+      - id: check-database-naming
+        name: Check database naming
+        entry: bash -c 'if grep -r "POSTGRES_DB=dean_prod[^u]" . --include="*.yml" --include="*.yaml" --include="*.env*" 2>/dev/null | grep -v ".git"; then echo "Found incorrect database name"; exit 1; fi'
+        language: system
+        pass_filenames: false
+
+      - id: check-env-placeholders
+        name: Check for placeholder values
+        entry: bash -c 'if grep -rE "CHANGE_ME|your-secret|your-password" . --include="*.env*" --exclude="*.template" 2>/dev/null | grep -v ".git"; then echo "Found placeholder values in env files"; exit 1; fi'
+        language: system
+        pass_filenames: false
+
+      - id: validate-docker-compose
+        name: Validate docker-compose files
+        entry: docker-compose -f docker-compose.prod.yml config
+        language: system
+        pass_filenames: false
+        files: docker-compose.*\.yml$
