@@ -1,0 +1,9 @@
+version: '3.8'
+
+# Override to exclude nginx service
+# Use with: docker-compose -f docker-compose.prod.yml -f docker-compose.no-nginx.yml up -d
+
+services:
+  nginx:
+    deploy:
+      replicas: 0
