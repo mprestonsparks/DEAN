@@ -1,0 +1,24 @@
+# Testing dependencies for DEAN orchestration
+# Minimal set for running tests in CI/CD
+
+# Include base requirements
+-r base.txt
+
+# Testing frameworks
+pytest>=7.4.3
+pytest-cov>=4.1.0
+pytest-asyncio>=0.21.1
+pytest-mock>=3.12.0
+pytest-timeout>=2.2.0
+pytest-xdist>=3.5.0  # Parallel test execution
+
+# HTTP testing
+httpx>=0.25.2
+respx>=0.20.2
+
+# Test utilities
+factory-boy>=3.3.0
+faker>=20.1.0
+
+# Coverage
+coverage[toml]>=7.3.2

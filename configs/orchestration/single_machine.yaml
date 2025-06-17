@@ -1,0 +1,181 @@
+# Single Machine Configuration
+# Optimized for running all DEAN services on one machine
+
+# Service Configuration
+services:
+  # All services run on localhost
+  indexagent:
+    base_url: "http://localhost:8081"
+    health_endpoint: "/health"
+    timeout: 30
+    retries: 3
+    
+  airflow:
+    base_url: "http://localhost:8080"
+    api_base: "/api/v1"
+    health_endpoint: "/health"
+    timeout: 60
+    retries: 3
+    auth:
+      type: "basic"
+      username: "${AIRFLOW_USERNAME:-airflow}"
+      password: "${AIRFLOW_PASSWORD:-airflow}"
+      
+  evolution_api:
+    base_url: "http://localhost:8083"
+    health_endpoint: "/health"
+    timeout: 120
+    retries: 2
+    
+  orchestration:
+    base_url: "http://localhost:8082"
+    health_endpoint: "/health"
+    timeout: 30
+    
+# Database Configuration
+postgres:
+  host: "localhost"
+  port: 5432
+  database: "dean_orchestration"
+  user: "${POSTGRES_USER:-postgres}"
+  password: "${POSTGRES_PASSWORD:-postgres}"
+  
+  # Connection pooling for single machine
+  connection_pool:
+    min_size: 2
+    max_size: 20  # Limited for single machine
+    
+# Redis Configuration
+redis:
+  host: "localhost"
+  port: 6379
+  password: "${REDIS_PASSWORD:-}"
+  
+  # Limited connection pool for single machine
+  connection_pool:
+    max_connections: 50
+    
+# Resource Constraints for Single Machine
+resources:
+  # Total system resources to use
+  total_memory_gb: 8  # Adjust based on your machine
+  total_cpu_cores: 4  # Adjust based on your machine
+  
+  # Service-specific limits (as percentage of total)
+  service_limits:
+    indexagent:
+      memory_percent: 20  # 1.6GB if total is 8GB
+      cpu_percent: 25     # 1 core if total is 4
+      
+    airflow:
+      memory_percent: 30  # 2.4GB if total is 8GB
+      cpu_percent: 25     # 1 core if total is 4
+      
+    evolution_api:
+      memory_percent: 20  # 1.6GB if total is 8GB
+      cpu_percent: 25     # 1 core if total is 4
+      
+    orchestration:
+      memory_percent: 15  # 1.2GB if total is 8GB
+      cpu_percent: 15     # 0.6 cores if total is 4
+      
+    postgres:
+      memory_percent: 10  # 0.8GB if total is 8GB
+      cpu_percent: 5      # 0.2 cores if total is 4
+      
+    redis:
+      memory_percent: 5   # 0.4GB if total is 8GB
+      cpu_percent: 5      # 0.2 cores if total is 4
+      
+# Evolution Configuration for Single Machine
+evolution:
+  # Reduced for single machine operation
+  defaults:
+    generations: 5
+    population_size: 10
+    max_concurrent_evaluations: 2  # Limited concurrency
+    
+  constraints:
+    max_trial_duration: 1800  # 30 minutes
+    max_memory_per_agent: 256  # MB
+    max_cpu_per_agent: 0.5  # cores
+    
+# Monitoring Configuration
+monitoring:
+  # Lightweight monitoring for single machine
+  metrics:
+    enabled: true
+    export_interval: 30  # Less frequent to reduce load
+    retention_days: 7    # Shorter retention
+    
+  logging:
+    level: "INFO"
+    max_file_size: "100MB"
+    max_files: 5
+    
+  # Disable heavy monitoring features
+  tracing:
+    enabled: false  # Reduce overhead
+    
+  alerts:
+    enabled: true
+    local_only: true  # Don't send external alerts
+    
+# Deployment Configuration
+deployment:
+  mode: "docker-compose"  # Use Docker Compose for single machine
+  
+  # Health check settings
+  health_checks:
+    initial_delay: 30
+    interval: 60
+    timeout: 10
+    
+  # Service startup order
+  startup_order:
+    - postgres
+    - redis
+    - indexagent
+    - airflow
+    - evolution_api
+    - orchestration
+    
+# Performance Tuning
+performance:
+  # Database tuning for single machine
+  postgres_tuning:
+    shared_buffers: "256MB"
+    effective_cache_size: "1GB"
+    max_connections: 100
+    
+  # Redis tuning
+  redis_tuning:
+    maxmemory: "512MB"
+    maxmemory_policy: "allkeys-lru"
+    
+  # Service tuning
+  service_tuning:
+    worker_processes: 2  # Limited workers
+    thread_pool_size: 10
+    connection_timeout: 30
+    
+# Backup Configuration
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention_days: 7
+  location: "${HOME}/dean-backups"
+  
+# Security Settings
+security:
+  # Relaxed for single machine development
+  enable_tls: false
+  enable_auth: true
+  allow_cors: true
+  cors_origins: ["http://localhost:*"]
+  
+# Stakeholder Input Required:
+# - Actual machine specifications (RAM, CPU cores)
+# - Desired resource allocation percentages
+# - Backup retention policies
+# - Security requirements for single machine deployment

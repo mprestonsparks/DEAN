@@ -1,0 +1,107 @@
+# Service Registry Configuration
+# Central registry of all DEAN system services and their endpoints
+
+services:
+  # Core Services
+  indexagent:
+    name: "IndexAgent API"
+    base_url: "${INDEXAGENT_API_URL:-http://localhost:8081}"
+    health_endpoint: "/health"
+    api_version: "v1"
+    timeout: 30
+    retries: 3
+    auth:
+      type: "bearer"
+      token_env: "INDEXAGENT_API_KEY"
+    
+  airflow:
+    name: "Apache Airflow"
+    base_url: "${AIRFLOW_API_URL:-http://localhost:8080}"
+    api_base: "/api/v1"
+    health_endpoint: "/health"
+    timeout: 60
+    retries: 3
+    auth:
+      type: "basic"
+      username_env: "AIRFLOW_USERNAME"
+      password_env: "AIRFLOW_PASSWORD"
+      
+  evolution_api:
+    name: "Evolution API"
+    base_url: "${EVOLUTION_API_URL:-http://localhost:8083}"
+    health_endpoint: "/health"
+    api_version: "v1"
+    timeout: 120  # Evolution operations can be slow
+    retries: 2
+    auth:
+      type: "bearer"
+      token_env: "EVOLUTION_API_KEY"
+      
+  # Infrastructure Services
+  postgres:
+    name: "PostgreSQL Database"
+    host: "${POSTGRES_HOST:-localhost}"
+    port: "${POSTGRES_PORT:-5432}"
+    databases:
+      - airflow
+      - indexagent
+      - market_analysis
+      - agent_evolution
+    connection_pool:
+      min_size: 2
+      max_size: 10
+      
+  redis:
+    name: "Redis Cache"
+    host: "${REDIS_HOST:-localhost}"
+    port: "${REDIS_PORT:-6379}"
+    databases:
+      cache: 0
+      pubsub: 1
+      agent_registry: 2
+      pattern_store: 3
+    connection_pool:
+      max_connections: 50
+      
+  vault:
+    name: "HashiCorp Vault"
+    base_url: "${VAULT_URL:-http://localhost:8200}"
+    namespace: "dean"
+    auth:
+      type: "token"
+      token_env: "VAULT_TOKEN"
+      
+# Service Discovery
+discovery:
+  method: "static"  # static, consul, kubernetes
+  refresh_interval: 300  # seconds
+  
+  # Consul configuration (if method=consul)
+  consul:
+    host: "${CONSUL_HOST:-localhost}"
+    port: "${CONSUL_PORT:-8500}"
+    datacenter: "dc1"
+    
+  # Kubernetes configuration (if method=kubernetes)
+  kubernetes:
+    namespace: "dean-system"
+    label_selector: "app.kubernetes.io/part-of=dean"
+    
+# Circuit Breaker Configuration
+circuit_breaker:
+  failure_threshold: 5
+  recovery_timeout: 60  # seconds
+  expected_exception_types:
+    - ConnectionError
+    - TimeoutError
+    
+# Load Balancing
+load_balancing:
+  strategy: "round_robin"  # round_robin, least_connections, weighted
+  health_check_interval: 30  # seconds
+  
+# Stakeholder Input Required:
+# - Service discovery mechanism for production
+# - Authentication strategies for inter-service communication
+# - Load balancing requirements
+# - Circuit breaker policies

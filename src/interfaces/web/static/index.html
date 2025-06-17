@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEAN Orchestration Dashboard</title>
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>DEAN Orchestration Dashboard</h1>
+            <div class="header-info">
+                <span id="connection-status" class="status-indicator">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Connecting...</span>
+                </span>
+                <span id="last-update" class="last-update">Last update: Never</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- System Status -->
+            <section class="card">
+                <h2>System Status</h2>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <h3>Overall Health</h3>
+                        <div id="overall-health" class="metric-value">--</div>
+                    </div>
+                    <div class="status-item">
+                        <h3>Active Agents</h3>
+                        <div id="active-agents" class="metric-value">--</div>
+                    </div>
+                    <div class="status-item">
+                        <h3>Recent Trials</h3>
+                        <div id="recent-trials" class="metric-value">--</div>
+                    </div>
+                </div>
+                
+                <!-- Service Status -->
+                <div class="service-status">
+                    <h3>Services</h3>
+                    <div id="service-list" class="service-list">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Evolution Trials -->
+            <section class="card">
+                <h2>Evolution Trials</h2>
+                <div class="trial-controls">
+                    <button id="new-trial-btn" class="btn btn-primary">Start New Trial</button>
+                    <button id="refresh-trials-btn" class="btn btn-secondary">Refresh</button>
+                </div>
+                
+                <div id="trials-table-container" class="table-container">
+                    <table id="trials-table" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Trial ID</th>
+                                <th>Repository</th>
+                                <th>Status</th>
+                                <th>Generations</th>
+                                <th>Best Score</th>
+                                <th>Started</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Active Agents -->
+            <section class="card">
+                <h2>Active Agents</h2>
+                <div class="agent-filters">
+                    <select id="repository-filter" class="filter-select">
+                        <option value="">All Repositories</option>
+                        <option value="indexagent">IndexAgent</option>
+                        <option value="airflow-hub">Airflow Hub</option>
+                        <option value="market-analysis">Market Analysis</option>
+                    </select>
+                    <button id="refresh-agents-btn" class="btn btn-secondary">Refresh</button>
+                </div>
+                
+                <div id="agents-grid" class="agents-grid">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </section>
+
+            <!-- Discovered Patterns -->
+            <section class="card">
+                <h2>Discovered Patterns</h2>
+                <div class="pattern-filters">
+                    <select id="pattern-type-filter" class="filter-select">
+                        <option value="">All Types</option>
+                        <option value="optimization">Optimization</option>
+                        <option value="refactoring">Refactoring</option>
+                        <option value="architecture">Architecture</option>
+                    </select>
+                    <button id="refresh-patterns-btn" class="btn btn-secondary">Refresh</button>
+                </div>
+                
+                <div id="patterns-list" class="patterns-list">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>DEAN Orchestration System v0.1.0 | <a href="/docs" target="_blank">API Documentation</a></p>
+        </footer>
+    </div>
+
+    <!-- New Trial Modal -->
+    <div id="new-trial-modal" class="modal">
+        <div class="modal-content">
+            <h3>Start New Evolution Trial</h3>
+            <form id="new-trial-form">
+                <div class="form-group">
+                    <label for="trial-repository">Repository:</label>
+                    <select id="trial-repository" name="repository" required>
+                        <option value="">Select Repository</option>
+                        <option value="indexagent">IndexAgent</option>
+                        <option value="airflow-hub">Airflow Hub</option>
+                        <option value="market-analysis">Market Analysis</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="trial-generations">Generations:</label>
+                    <input type="number" id="trial-generations" name="generations" 
+                           min="1" max="100" value="10" required>
+                </div>
+                <div class="form-group">
+                    <label for="trial-population">Population Size:</label>
+                    <input type="number" id="trial-population" name="population_size" 
+                           min="5" max="200" value="20" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Start Trial</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

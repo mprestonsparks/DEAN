@@ -1,0 +1,191 @@
+name: Release Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.2.3)'
+        required: true
+        type: string
+      release_type:
+        description: 'Release type'
+        required: true
+        default: 'minor'
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+
+jobs:
+  prepare-release:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # Auto-increment version based on release type
+            CURRENT_VERSION=$(grep "version = " pyproject.toml | cut -d'"' -f2)
+            IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
+            
+            case "${{ github.event.inputs.release_type }}" in
+              major)
+                VERSION="${VERSION_PARTS[0]}.0.0"
+                ;;
+              minor)
+                VERSION="${VERSION_PARTS[0]}.$((${VERSION_PARTS[1]} + 1)).0"
+                ;;
+              patch)
+                VERSION="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.$((${VERSION_PARTS[2]} + 1))"
+                ;;
+            esac
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+          
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Generate changelog from git history
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$LAST_TAG" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s" --no-merges)
+          else
+            CHANGELOG=$(git log $LAST_TAG..HEAD --pretty=format:"- %s" --no-merges)
+          fi
+          
+          # Write to file for multi-line output
+          echo "$CHANGELOG" > changelog.txt
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          cat changelog.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+      - name: Update version in files
+        run: |
+          # Update pyproject.toml
+          sed -i "s/version = \".*\"/version = \"${{ steps.version.outputs.version }}\"/" pyproject.toml
+          
+          # Update other version references
+          find . -name "*.py" -type f -exec sed -i "s/__version__ = \".*\"/__version__ = \"${{ steps.version.outputs.version }}\"/" {} \;
+          
+      - name: Create release branch
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          BRANCH_NAME="release/${{ steps.version.outputs.version }}"
+          git checkout -b $BRANCH_NAME
+          git add -A
+          git commit -m "chore: prepare release ${{ steps.version.outputs.version }}"
+          git push origin $BRANCH_NAME
+          
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: release/${{ steps.version.outputs.version }}
+          title: "Release v${{ steps.version.outputs.version }}"
+          body: |
+            ## Release v${{ steps.version.outputs.version }}
+            
+            ### Changes
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ### Checklist
+            - [ ] Version numbers updated
+            - [ ] Changelog reviewed
+            - [ ] Tests passing
+            - [ ] Documentation updated
+            
+            Merge this PR to trigger the release workflow.
+          labels: release
+
+  create-release:
+    name: Create GitHub Release
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Create and push tag
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          TAG="v${{ needs.prepare-release.outputs.version }}"
+          git tag -a $TAG -m "Release $TAG"
+          git push origin $TAG
+          
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.prepare-release.outputs.version }}
+          name: Release v${{ needs.prepare-release.outputs.version }}
+          body: ${{ needs.prepare-release.outputs.changelog }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          
+      - name: Build and publish Python package
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+          python -m build
+          
+          # Publish to PyPI (requires PYPI_API_TOKEN secret)
+          # twine upload dist/* -u __token__ -p ${{ secrets.PYPI_API_TOKEN }}
+          
+      - name: Update documentation
+        run: |
+          # Update version in documentation
+          # This is a placeholder - implement based on your docs system
+          echo "Documentation update would happen here"
+          
+      - name: Notify team
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "New release published: v${{ needs.prepare-release.outputs.version }}",
+              "attachments": [{
+                "color": "good",
+                "fields": [{
+                  "title": "Version",
+                  "value": "v${{ needs.prepare-release.outputs.version }}",
+                  "short": true
+                }, {
+                  "title": "Release URL",
+                  "value": "${{ github.event.release.html_url }}",
+                  "short": true
+                }]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

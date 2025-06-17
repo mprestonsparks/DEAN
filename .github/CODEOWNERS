@@ -1,0 +1,33 @@
+# DEAN System Code Owners
+# This file defines who is responsible for code reviews in different parts of the repository
+
+# Default owners for everything in the repo
+* @dean-maintainers
+
+# Core orchestration components
+/src/orchestration/ @orchestration-team @dean-maintainers
+/src/integration/ @integration-team @dean-maintainers
+/src/interfaces/ @frontend-team @dean-maintainers
+
+# Authentication and security
+/src/auth/ @security-team @dean-maintainers
+/tests/security/ @security-team
+
+# Configuration and deployment
+/configs/ @devops-team @dean-maintainers
+/scripts/ @devops-team @dean-maintainers
+/docker-compose*.yml @devops-team
+
+# Documentation
+/docs/ @documentation-team @dean-maintainers
+*.md @documentation-team
+
+# Testing
+/tests/ @qa-team @dean-maintainers
+
+# CI/CD
+/.github/ @devops-team @dean-maintainers
+
+# Dependencies
+/requirements*.txt @security-team @dean-maintainers
+/pyproject.toml @dean-maintainers

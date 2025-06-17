@@ -1,0 +1,231 @@
+# Local Deployment Configuration
+# Settings for local development and testing
+
+# Deployment Environment
+environment: "local"
+debug_mode: true
+
+# Docker Configuration
+docker:
+  compose_file: "docker-compose.local.yml"
+  project_name: "dean-local"
+  
+  # Build settings
+  build:
+    context: "."
+    dockerfile: "Dockerfile"
+    no_cache: false
+    
+  # Network settings
+  network:
+    name: "dean-network"
+    driver: "bridge"
+    
+# Service Ports (all on localhost)
+ports:
+  orchestration: 8082
+  indexagent: 8081
+  airflow: 8080
+  evolution_api: 8083
+  postgres: 5432
+  redis: 6379
+  vault: 8200
+  zoekt: 6070
+  prometheus: 9090
+  
+# Volume Mounts for Local Development
+volumes:
+  # Code volumes for hot reloading
+  code:
+    - "./src:/app/src:ro"
+    - "./configs:/app/configs:ro"
+    - "./scripts:/app/scripts:ro"
+    
+  # Data volumes
+  data:
+    - "./data/postgres:/var/lib/postgresql/data"
+    - "./data/redis:/data"
+    - "./data/vault:/vault/data"
+    
+  # Log volumes
+  logs:
+    - "./logs:/app/logs"
+    
+# Environment Variables
+environment:
+  # General settings
+  ENVIRONMENT: "local"
+  DEBUG: "true"
+  LOG_LEVEL: "DEBUG"
+  
+  # Service URLs (all localhost)
+  ORCHESTRATION_URL: "http://localhost:8082"
+  INDEXAGENT_API_URL: "http://localhost:8081"
+  AIRFLOW_API_URL: "http://localhost:8080"
+  EVOLUTION_API_URL: "http://localhost:8083"
+  
+  # Database settings
+  POSTGRES_HOST: "localhost"
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: "postgres"
+  POSTGRES_PASSWORD: "postgres"
+  POSTGRES_DB: "dean_orchestration"
+  
+  # Redis settings
+  REDIS_HOST: "localhost"
+  REDIS_PORT: "6379"
+  
+  # Development settings
+  PYTHONUNBUFFERED: "1"
+  DEAN_DEV_MODE: "true"
+  DEAN_HOT_RELOAD: "true"
+  
+# Resource Limits for Local Development
+resources:
+  limits:
+    orchestration:
+      memory: "512Mi"
+      cpus: "0.5"
+      
+    indexagent:
+      memory: "1Gi"
+      cpus: "1.0"
+      
+    airflow:
+      memory: "2Gi"
+      cpus: "1.0"
+      
+    evolution_api:
+      memory: "1Gi"
+      cpus: "1.0"
+      
+    postgres:
+      memory: "512Mi"
+      cpus: "0.5"
+      
+    redis:
+      memory: "256Mi"
+      cpus: "0.25"
+      
+# Health Check Configuration
+health_checks:
+  enabled: true
+  initial_delay: 10  # Faster for local
+  interval: 30
+  timeout: 5
+  retries: 3
+  
+# Initialization
+initialization:
+  # Database initialization
+  init_db: true
+  run_migrations: true
+  
+  # Sample data
+  load_sample_data: true
+  create_test_users: true
+  
+  # Service initialization
+  init_airflow: true
+  create_airflow_connections: true
+  
+# Development Features
+development:
+  # API documentation
+  enable_swagger: true
+  enable_redoc: true
+  
+  # Debugging
+  enable_debugger: true
+  enable_profiler: false
+  
+  # Testing
+  enable_test_endpoints: true
+  mock_external_services: false
+  
+  # Hot reload
+  watch_files: true
+  reload_on_change: true
+  
+# Local Services Configuration
+local_services:
+  # Use embedded services where possible
+  use_embedded_redis: false
+  use_sqlite_for_testing: false
+  
+  # External service mocks
+  mock_indexagent: false
+  mock_airflow: false
+  mock_evolution: false
+  
+# Logging Configuration
+logging:
+  # Console logging for development
+  handlers:
+    - type: "console"
+      level: "DEBUG"
+      format: "colored"  # Colored output for terminals
+      
+    - type: "file"
+      level: "INFO"
+      path: "./logs/dean-local.log"
+      rotation: "daily"
+      retention: 7
+      
+  # Detailed logging for debugging
+  loggers:
+    dean_orchestration: "DEBUG"
+    dean_integration: "DEBUG"
+    dean_web: "DEBUG"
+    sqlalchemy: "WARNING"  # Too verbose at DEBUG
+    aiohttp: "INFO"
+    
+# Security Settings for Local
+security:
+  # Relaxed for local development
+  disable_auth: false  # Still test auth locally
+  use_default_credentials: true
+  
+  # CORS settings
+  cors:
+    enabled: true
+    allow_origins: ["*"]
+    allow_credentials: true
+    
+  # JWT settings
+  jwt:
+    secret_key: "local-development-secret-key-change-in-production"
+    algorithm: "HS256"
+    expiration_hours: 24
+    
+# Cleanup Configuration
+cleanup:
+  # Automatic cleanup for local development
+  on_startup:
+    clear_logs: false
+    clear_temp_files: true
+    reset_database: false
+    
+  on_shutdown:
+    save_logs: true
+    export_metrics: false
+    create_backup: false
+    
+# Performance Settings
+performance:
+  # Optimized for development
+  enable_caching: false  # Disable to see changes immediately
+  cache_ttl: 60
+  
+  # Connection pools
+  db_pool_size: 5
+  redis_pool_size: 10
+  
+  # Timeouts
+  request_timeout: 300  # 5 minutes for debugging
+  
+# Stakeholder Input Required:
+# - Preferred local development setup (Docker vs native)
+# - Required mock services for testing
+# - Development tool preferences
+# - Local resource constraints

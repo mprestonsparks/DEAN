@@ -1,0 +1,89 @@
+# Environment and secrets
+.env
+.env.*
+\!.env.*.template
+\!.env.example
+secrets/
+credentials/
+*.pem
+*.key
+*.crt
+\!localhost.crt.example
+
+# Data and logs
+data/
+logs/
+*.log
+backups/
+*.sql
+*.dump
+*.backup
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Temporary
+*.tmp
+*.temp
+*.bak
+tmp/
+temp/
+
+# Development artifacts
+development_notes/
+scratch/
+experiments/
+*.todo
+deployment_prep/
+DEPLOYMENT_MANIFEST.md
+REPOSITORY_READY_FOR_DEPLOYMENT*.md
+DEPLOYMENT_PREP_SUMMARY.txt
+DEPLOYMENT_VERIFICATION_SUMMARY.md
+FINAL_DEPLOYMENT_STATUS*.md
+FINAL_CHECKLIST.txt
+repository_stats.txt
+repository_structure.txt
+critical_files_check.txt
+
+# Other temporary development files
+DEPLOYMENT_READINESS_CHECKLIST.md
+DEPLOYMENT_STATUS.md
+DEPLOYMENT_SUCCESS_CRITERIA.md
+HANDOVER_DOCUMENT.md
+PROJECT_SUMMARY.md
+RELEASE_NOTES_v*.md
+REPOSITORY_FINAL_REVIEW.md
+test_auth_simple.py
+test_unified_server.py
+verify_auth_files.py
+verify_deployment_ready.sh

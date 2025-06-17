@@ -1,0 +1,67 @@
+# Local Development Configuration Example
+# This configuration is optimized for local development
+
+# Service endpoints for local development
+services:
+  indexagent:
+    base_url: "http://localhost:8081"
+    timeout: 30
+    
+  airflow:
+    base_url: "http://localhost:8080"
+    auth:
+      username: "airflow"
+      password: "airflow"
+      
+  evolution_api:
+    base_url: "http://localhost:8083"
+    
+  postgres:
+    host: "localhost"
+    port: 5432
+    username: "postgres"
+    password: "postgres"
+    
+  redis:
+    host: "localhost"
+    port: 6379
+
+# Evolution settings for quick testing
+evolution:
+  defaults:
+    generations: 3  # Reduced for faster testing
+    population_size: 5  # Smaller population
+    
+  constraints:
+    max_trial_duration: 300  # 5 minutes max
+    max_concurrent_evaluations: 2
+
+# Deployment settings
+deployment:
+  environment: "development"
+  health_checks:
+    initial_delay: 5  # Faster startup
+    interval: 10
+    
+# Monitoring settings
+monitoring:
+  metrics:
+    enabled: true
+    export_interval: 5  # More frequent for debugging
+    
+  logging:
+    level: "DEBUG"
+    format: "text"  # Easier to read in console
+    
+  tracing:
+    enabled: true
+    sampling_rate: 1.0  # Trace everything in dev
+    
+  alerts:
+    enabled: false  # No alerts in development
+
+# Resource limits (reduced for local development)
+resources:
+  defaults:
+    memory: "256Mi"
+    cpu: "250m"

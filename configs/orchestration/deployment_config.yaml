@@ -1,0 +1,92 @@
+# Deployment Configuration
+# Defines how DEAN system components are deployed and managed
+
+deployment:
+  # Environment settings
+  environment: development  # development, staging, production
+  
+  # Service deployment order
+  deployment_order:
+    - postgres
+    - redis
+    - vault
+    - indexagent
+    - airflow
+    - evolution-api
+    - dean-server
+    
+  # Health check configuration
+  health_checks:
+    initial_delay: 10  # seconds
+    interval: 30  # seconds
+    timeout: 5  # seconds
+    retries: 3
+    
+  # Service dependencies
+  dependencies:
+    indexagent:
+      requires: [postgres, redis]
+      wait_for_ready: true
+      
+    airflow:
+      requires: [postgres, redis]
+      wait_for_ready: true
+      
+    evolution-api:
+      requires: [postgres, redis, indexagent]
+      wait_for_ready: true
+      
+    dean-server:
+      requires: [indexagent, airflow, evolution-api]
+      wait_for_ready: false  # Can start with degraded functionality
+      
+  # Rollback configuration
+  rollback:
+    enabled: true
+    on_health_check_failure: true
+    keep_previous_version: true
+    max_rollback_time: 300  # seconds
+    
+  # Resource limits
+  resources:
+    defaults:
+      memory: "512Mi"
+      cpu: "500m"
+      
+    overrides:
+      postgres:
+        memory: "1Gi"
+        cpu: "1000m"
+        
+      airflow:
+        memory: "2Gi"
+        cpu: "2000m"
+        
+      indexagent:
+        memory: "1Gi"
+        cpu: "1000m"
+        
+# Environment-specific settings
+environments:
+  development:
+    auto_restart: true
+    debug_enabled: true
+    resource_multiplier: 0.5
+    
+  staging:
+    auto_restart: true
+    debug_enabled: false
+    resource_multiplier: 0.8
+    
+  production:
+    auto_restart: false
+    debug_enabled: false
+    resource_multiplier: 1.0
+    backup_enabled: true
+    monitoring_enabled: true
+    
+# Stakeholder Input Required:
+# - Production deployment strategies (blue-green, canary, rolling)
+# - Disaster recovery procedures
+# - Multi-region deployment configuration
+# - Security hardening requirements

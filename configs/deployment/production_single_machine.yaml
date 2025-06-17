@@ -1,0 +1,378 @@
+# Production deployment configuration for single machine
+# Optimized for i7 CPU (4-8 cores) with RTX 3080 GPU
+
+environment: production
+debug_mode: false
+
+# Resource allocation
+resources:
+  # System specifications (adjust based on your hardware)
+  total_memory_gb: 32  # Typical for gaming/ML systems with RTX 3080
+  total_cpu_cores: 8   # i7 typically has 4-8 physical cores
+  gpu_memory_gb: 10    # RTX 3080 has 10GB VRAM
+  
+  # Reserve resources for system and GPU operations
+  system_reserved:
+    memory_gb: 4       # OS and other processes
+    cpu_cores: 1       # System overhead
+    gpu_reserved_gb: 2 # Display and other GPU tasks
+  
+  # Available for DEAN services
+  available:
+    memory_gb: 28      # 32 - 4 reserved
+    cpu_cores: 7       # 8 - 1 reserved
+    gpu_memory_gb: 8   # 10 - 2 reserved
+
+# Service resource limits (percentage of available resources)
+services:
+  orchestration:
+    memory_percent: 15   # ~4.2GB
+    cpu_percent: 20      # ~1.4 cores
+    replicas: 1
+    
+  indexagent:
+    memory_percent: 25   # ~7GB (needs more for code analysis)
+    cpu_percent: 30      # ~2.1 cores
+    replicas: 1
+    gpu_enabled: true    # Can use GPU for embeddings
+    gpu_memory_mb: 2048  # 2GB for ML models
+    
+  airflow:
+    memory_percent: 20   # ~5.6GB
+    cpu_percent: 20      # ~1.4 cores
+    replicas: 1
+    
+  evolution:
+    memory_percent: 25   # ~7GB (evolution trials need memory)
+    cpu_percent: 25      # ~1.75 cores
+    replicas: 1
+    gpu_enabled: true    # Can use GPU for fitness evaluation
+    gpu_memory_mb: 4096  # 4GB for evolution
+    
+  postgresql:
+    memory_percent: 10   # ~2.8GB
+    cpu_percent: 5       # ~0.35 cores
+    replicas: 1
+    
+  redis:
+    memory_percent: 5    # ~1.4GB
+    cpu_percent: 5       # ~0.35 cores
+    replicas: 1
+
+# Security configuration
+security:
+  # JWT settings
+  jwt_secret_key: ${JWT_SECRET_KEY}  # Must be set in environment
+  jwt_algorithm: HS256
+  access_token_expire_minutes: 30
+  refresh_token_expire_days: 7
+  
+  # Password policy
+  password_requirements:
+    min_length: 12              # Stronger for production
+    require_uppercase: true
+    require_lowercase: true
+    require_digits: true
+    require_special: true
+  
+  # Account security
+  max_login_attempts: 3         # More restrictive
+  lockout_duration_minutes: 30  # Longer lockout
+  
+  # API security
+  api_key_rotation_days: 90
+  rate_limiting:
+    requests_per_minute: 100
+    burst_size: 20
+  
+  # CORS settings (restrict in production)
+  cors_origins:
+    - https://localhost:8082
+    - https://127.0.0.1:8082
+    # Add your domain when deployed
+  
+  # SSL/TLS
+  ssl_enabled: true
+  ssl_cert_path: /etc/dean/certs/cert.pem
+  ssl_key_path: /etc/dean/certs/key.pem
+  force_https: true
+
+# Database configuration
+database:
+  host: localhost
+  port: 5432
+  name: dean_production
+  user: dean_prod
+  password: ${POSTGRES_PASSWORD}  # From environment
+  
+  # Connection pooling
+  pool_size: 20
+  max_overflow: 10
+  pool_timeout: 30
+  
+  # Performance
+  statement_timeout_ms: 60000  # 1 minute
+  lock_timeout_ms: 10000       # 10 seconds
+
+# Redis configuration
+redis:
+  host: localhost
+  port: 6379
+  password: ${REDIS_PASSWORD}  # From environment
+  
+  # Connection pooling
+  max_connections: 50
+  
+  # Memory management
+  maxmemory_policy: allkeys-lru
+  maxmemory_percent: 90  # Of allocated memory
+
+# Evolution configuration
+evolution:
+  # Resource constraints per trial
+  max_concurrent_trials: 2      # Limited by memory
+  max_agents_per_trial: 50      # Reasonable for single machine
+  max_generations: 100
+  
+  # GPU utilization
+  gpu_batch_size: 32            # Process agents in batches on GPU
+  use_mixed_precision: true     # FP16 for better GPU utilization
+  
+  # Memory management
+  agent_memory_mb: 100          # Per agent memory limit
+  checkpoint_frequency: 10      # Save every N generations
+  
+  # Performance optimization
+  parallel_evaluation: true
+  num_workers: 4                # CPU workers for non-GPU tasks
+
+# Monitoring and logging
+monitoring:
+  # Metrics collection
+  metrics_enabled: true
+  metrics_port: 9090
+  metrics_interval_seconds: 60
+  
+  # Logging
+  log_level: INFO
+  log_format: json
+  log_retention_days: 30
+  
+  # Log destinations
+  log_outputs:
+    - file: /var/log/dean/dean.log
+    - stdout: true
+  
+  # Performance monitoring
+  profile_enabled: false        # Enable for debugging only
+  trace_sample_rate: 0.01       # 1% of requests
+
+# Backup configuration
+backup:
+  enabled: true
+  schedule: "0 2 * * *"         # 2 AM daily
+  retention_days: 7
+  
+  # Backup destinations
+  destinations:
+    - type: local
+      path: /backup/dean
+    - type: s3
+      bucket: ${BACKUP_S3_BUCKET}
+      prefix: dean-backup/
+  
+  # What to backup
+  include:
+    - database: true
+    - redis: true
+    - configs: true
+    - logs: false               # Too large
+
+# Service dependencies
+dependencies:
+  startup_order:
+    - postgresql
+    - redis
+    - orchestration
+    - indexagent
+    - airflow
+    - evolution
+  
+  health_check_timeout_seconds: 300  # 5 minutes for all services
+  
+# Deployment settings
+deployment:
+  # Update strategy
+  strategy: rolling
+  max_unavailable: 0            # Zero downtime
+  
+  # Health checks
+  health_check_interval: 30
+  health_check_timeout: 10
+  health_check_retries: 3
+  
+  # Graceful shutdown
+  termination_grace_period: 60  # Seconds to wait before force kill
+
+# Performance tuning
+performance:
+  # CPU optimization
+  cpu_affinity: true            # Pin services to specific cores
+  numa_awareness: true          # Optimize for NUMA architecture
+  
+  # GPU optimization  
+  cuda_device_order: PCI_BUS_ID
+  cuda_visible_devices: "0"     # Single GPU
+  tf_gpu_memory_growth: true    # Gradual GPU memory allocation
+  
+  # I/O optimization
+  disk_io_scheduler: deadline   # Better for database workloads
+  vm_swappiness: 10            # Minimize swapping
+  
+  # Network optimization
+  tcp_keepalive: true
+  tcp_keepalive_time: 600      # 10 minutes
+  
+# Alerts and notifications
+alerts:
+  enabled: true
+  
+  # Alert destinations
+  destinations:
+    - type: email
+      address: ${ALERT_EMAIL}
+    - type: webhook
+      url: ${ALERT_WEBHOOK_URL}
+  
+  # Alert conditions
+  conditions:
+    - name: high_memory_usage
+      threshold: 90              # Percent
+      duration: 300              # 5 minutes
+      severity: warning
+      
+    - name: service_down
+      duration: 60               # 1 minute
+      severity: critical
+      
+    - name: evolution_trial_failed
+      threshold: 3               # Consecutive failures
+      severity: warning
+      
+    - name: authentication_failures
+      threshold: 10              # Per minute
+      severity: critical
+
+# Feature flags
+features:
+  # Security features
+  enforce_2fa: false            # Enable when ready
+  audit_logging: true
+  
+  # Performance features
+  query_caching: true
+  result_compression: true
+  
+  # Evolution features
+  adaptive_mutation_rate: true
+  elite_preservation: true
+  
+  # Experimental features
+  distributed_evolution: false  # Single machine for now
+  quantum_fitness: false        # Future enhancement
+
+# Maintenance windows
+maintenance:
+  # Automatic updates
+  auto_update: false            # Manual control preferred
+  
+  # Maintenance schedule
+  window:
+    day: sunday
+    hour: 3                     # 3 AM local time
+    duration_hours: 2
+  
+  # Pre-maintenance actions
+  pre_maintenance:
+    - backup_database: true
+    - notify_users: true
+    - drain_connections: true
+  
+  # Post-maintenance actions
+  post_maintenance:
+    - verify_services: true
+    - run_tests: true
+    - warm_cache: true
+
+# External integrations (optional)
+integrations:
+  # Version control
+  git:
+    auto_pull: false            # Manual control
+    webhook_enabled: false      # GitHub/GitLab webhooks
+    
+  # Cloud providers (for future expansion)
+  aws:
+    enabled: false
+    region: us-east-1
+    
+  azure:
+    enabled: false
+    
+  gcp:
+    enabled: false
+
+# Service discovery
+service_discovery:
+  # For single machine, use localhost
+  mode: static                  # static, consul, etcd
+  
+  services:
+    orchestration:
+      host: localhost
+      port: 8082
+      
+    indexagent:
+      host: localhost
+      port: 8081
+      
+    airflow:
+      host: localhost
+      port: 8080
+      
+    evolution:
+      host: localhost
+      port: 8083
+      
+    postgresql:
+      host: localhost
+      port: 5432
+      
+    redis:
+      host: localhost
+      port: 6379
+
+# Final optimization notes
+optimization_notes:
+  # CPU Pinning suggestions for i7
+  cpu_pinning:
+    orchestration: [0, 1]       # Cores 0-1
+    indexagent: [2, 3, 4]       # Cores 2-4
+    airflow: [5, 6]             # Cores 5-6
+    evolution: [3, 4, 7]        # Shared with indexagent + dedicated
+    postgresql: [7]             # Shared with evolution
+    redis: [7]                  # Shared with DB
+    
+  # Memory hugepages (optional)
+  hugepages:
+    enabled: false              # Requires kernel config
+    size_mb: 2048              # 2MB pages
+    count: 1000                # 2GB total
+    
+  # GPU optimization
+  gpu_notes:
+    - "Ensure CUDA 11.x or later installed"
+    - "Install cuDNN for deep learning operations"
+    - "Monitor GPU temperature under load"
+    - "Consider GPU memory oversubscription carefully"
+    - "Use nvidia-smi for monitoring"

@@ -1,0 +1,38 @@
+# Core dependencies for DEAN orchestration
+# These are the minimum required packages for running the system
+
+# Web framework and server
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+
+# HTTP client with async support
+aiohttp>=3.9.0
+requests>=2.31.0
+
+# CLI framework
+click>=8.1.7
+rich>=13.7.0
+
+# Configuration and environment
+pyyaml>=6.0.1
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Database clients
+psycopg2-binary>=2.9.9
+redis>=5.0.1
+
+# Logging and monitoring
+structlog>=23.2.0
+
+# Retry and resilience
+tenacity>=8.2.3
+
+# Async utilities
+asyncio-throttle>=1.0.2
+
+# Authentication
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.6

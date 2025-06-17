@@ -1,0 +1,325 @@
+name: CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*.*.*' ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      strategy:
+        description: 'Deployment strategy'
+        required: true
+        default: 'rolling'
+        type: choice
+        options:
+          - rolling
+          - blue-green
+          - canary
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ steps.meta.outputs.version }}
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'staging'
+    environment:
+      name: staging
+      url: https://staging.dean.example.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+          
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+          
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name dean-staging-cluster --region us-east-1
+          
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.13.0'
+          
+      - name: Deploy to staging
+        run: |
+          helm upgrade --install dean-orchestration ./helm/dean-orchestration \
+            --namespace dean-staging \
+            --create-namespace \
+            --set image.tag=${{ needs.build-and-push.outputs.image-tag }} \
+            --set environment=staging \
+            --values ./helm/dean-orchestration/values.staging.yaml \
+            --wait \
+            --timeout 10m
+            
+      - name: Run smoke tests
+        run: |
+          kubectl run smoke-test --rm -i --restart=Never \
+            --image=curlimages/curl:latest \
+            --namespace=dean-staging \
+            -- curl -f http://dean-orchestration.dean-staging.svc.cluster.local:8082/health
+            
+      - name: Notify Slack on success
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Staging deployment successful",
+              "attachments": [{
+                "color": "good",
+                "fields": [{
+                  "title": "Environment",
+                  "value": "staging",
+                  "short": true
+                }, {
+                  "title": "Version",
+                  "value": "${{ needs.build-and-push.outputs.image-tag }}",
+                  "short": true
+                }]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  deploy-production:
+    name: Deploy to Production
+    needs: [build-and-push, deploy-staging]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.environment == 'production'
+    environment:
+      name: production
+      url: https://dean.example.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.PROD_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.PROD_AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+          
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+          
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name dean-production-cluster --region us-east-1
+          
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.13.0'
+          
+      - name: Create deployment backup
+        run: |
+          kubectl get all,configmap,secret,ingress -n dean-production \
+            -l app.kubernetes.io/instance=dean-orchestration \
+            -o yaml > backup-${{ github.run_id }}.yaml
+            
+      - name: Upload backup
+        uses: actions/upload-artifact@v3
+        with:
+          name: production-backup-${{ github.run_id }}
+          path: backup-${{ github.run_id }}.yaml
+          retention-days: 30
+          
+      - name: Deploy to production
+        run: |
+          STRATEGY="${{ github.event.inputs.strategy || 'blue-green' }}"
+          
+          case $STRATEGY in
+            blue-green)
+              ./scripts/deploy/deploy_production.sh
+              ;;
+            canary)
+              DEPLOY_STRATEGY=canary ./scripts/deploy/deploy_production.sh
+              ;;
+            rolling)
+              helm upgrade --install dean-orchestration ./helm/dean-orchestration \
+                --namespace dean-production \
+                --create-namespace \
+                --set image.tag=${{ needs.build-and-push.outputs.image-tag }} \
+                --set environment=production \
+                --values ./helm/dean-orchestration/values.production.yaml \
+                --wait \
+                --timeout 15m
+              ;;
+          esac
+          
+      - name: Run production tests
+        run: |
+          ./scripts/deploy/health_check.sh
+          
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          prerelease: false
+          files: |
+            backup-${{ github.run_id }}.yaml
+            
+      - name: Notify PagerDuty
+        if: failure()
+        uses: Entle/action-pagerduty-alert@v1
+        with:
+          pagerduty-integration-key: ${{ secrets.PAGERDUTY_KEY }}
+          event-type: trigger
+          description: "Production deployment failed"
+          
+      - name: Notify Slack on completion
+        if: always()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Production deployment ${{ job.status }}",
+              "attachments": [{
+                "color": "${{ job.status == 'success' && 'good' || 'danger' }}",
+                "fields": [{
+                  "title": "Environment",
+                  "value": "production",
+                  "short": true
+                }, {
+                  "title": "Version",
+                  "value": "${{ needs.build-and-push.outputs.image-tag }}",
+                  "short": true
+                }, {
+                  "title": "Strategy",
+                  "value": "${{ github.event.inputs.strategy || 'blue-green' }}",
+                  "short": true
+                }, {
+                  "title": "Status",
+                  "value": "${{ job.status }}",
+                  "short": true
+                }]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  rollback:
+    name: Rollback Production
+    runs-on: ubuntu-latest
+    if: failure() && needs.deploy-production.result == 'failure'
+    needs: deploy-production
+    environment:
+      name: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.PROD_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.PROD_AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+          
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name dean-production-cluster --region us-east-1
+          
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        
+      - name: Perform rollback
+        run: |
+          ./scripts/deploy/rollback.sh --force
+          
+      - name: Notify Slack about rollback
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Production deployment rolled back",
+              "attachments": [{
+                "color": "warning",
+                "fields": [{
+                  "title": "Action",
+                  "value": "Automatic rollback performed",
+                  "short": false
+                }]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -1,0 +1,152 @@
+# Production Configuration Example
+# This configuration demonstrates production-ready settings
+
+# Service endpoints with service discovery
+services:
+  indexagent:
+    base_url: "https://indexagent.dean-system.internal"
+    timeout: 60
+    retries: 5
+    auth:
+      type: "bearer"
+      token_vault_path: "secret/dean/indexagent/api-token"
+    
+  airflow:
+    base_url: "https://airflow.dean-system.internal"
+    api_base: "/api/v1"
+    timeout: 120
+    auth:
+      type: "oauth2"
+      client_id_vault_path: "secret/dean/airflow/client-id"
+      client_secret_vault_path: "secret/dean/airflow/client-secret"
+      
+  evolution_api:
+    base_url: "https://evolution.dean-system.internal"
+    timeout: 300
+    auth:
+      type: "mtls"
+      cert_vault_path: "secret/dean/evolution/client-cert"
+      key_vault_path: "secret/dean/evolution/client-key"
+
+# Database configuration with connection pooling
+postgres:
+  host: "postgres-primary.dean-system.internal"
+  port: 5432
+  ssl_mode: "require"
+  connection_pool:
+    min_size: 10
+    max_size: 50
+    max_idle_time: 300
+  
+# Redis configuration with Sentinel
+redis:
+  sentinels:
+    - host: "redis-sentinel-1.dean-system.internal"
+      port: 26379
+    - host: "redis-sentinel-2.dean-system.internal"
+      port: 26379
+    - host: "redis-sentinel-3.dean-system.internal"
+      port: 26379
+  master_name: "dean-master"
+  connection_pool:
+    max_connections: 100
+
+# Evolution settings for production
+evolution:
+  defaults:
+    generations: 20
+    population_size: 50
+    
+  fitness:
+    weights:
+      code_quality: 0.3
+      test_coverage: 0.3  # Higher weight in production
+      performance: 0.2
+      security: 0.2  # Added security consideration
+      
+  constraints:
+    max_trial_duration: 7200  # 2 hours
+    max_memory_per_agent: 1024  # 1GB
+    max_cpu_per_agent: 2.0
+    max_concurrent_evaluations: 10
+
+# Deployment settings
+deployment:
+  environment: "production"
+  strategy: "blue-green"
+  
+  health_checks:
+    initial_delay: 30
+    interval: 60
+    timeout: 10
+    retries: 5
+    
+  rollback:
+    enabled: true
+    automatic: true
+    success_threshold: 0.95  # 95% health checks must pass
+
+# Monitoring settings
+monitoring:
+  metrics:
+    enabled: true
+    export_interval: 30
+    retention_days: 90
+    
+  logging:
+    level: "INFO"
+    format: "json"
+    outputs:
+      - type: "elasticsearch"
+        enabled: true
+        url: "https://elasticsearch.dean-system.internal:9200"
+        index: "dean-logs-production"
+        
+  tracing:
+    enabled: true
+    sampling_rate: 0.01  # 1% sampling
+    
+  alerts:
+    enabled: true
+    channels:
+      - name: "pagerduty"
+        enabled: true
+        severity_filter: ["critical", "error"]
+        
+      - name: "slack"
+        enabled: true
+        severity_filter: ["warning", "info"]
+
+# High availability settings
+high_availability:
+  enabled: true
+  replicas: 3
+  pod_disruption_budget:
+    min_available: 2
+    
+# Security settings
+security:
+  tls:
+    enabled: true
+    min_version: "1.3"
+    
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 100
+    burst: 20
+    
+  ip_whitelist:
+    enabled: true
+    ranges:
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+
+# Backup settings
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention_days: 30
+  destinations:
+    - type: "s3"
+      bucket: "dean-backups-production"
+      prefix: "orchestration/"

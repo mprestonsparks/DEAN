@@ -1,0 +1,210 @@
+# DEAN Hardware Configuration - Intel i7 + RTX 3080
+# Optimized settings for high-performance desktop deployment
+
+system:
+  name: "DEAN i7/RTX3080 Configuration"
+  version: "1.0.0"
+  profile: "high-performance-desktop"
+
+hardware:
+  cpu:
+    model: "Intel Core i7 (8th gen or newer)"
+    cores: 8
+    threads: 16
+    base_frequency: 3.6  # GHz
+    turbo_frequency: 5.0  # GHz
+    cache_size: 16  # MB
+    
+  memory:
+    total: 32  # GB
+    type: "DDR4"
+    frequency: 3200  # MHz
+    channels: 2
+    
+  gpu:
+    model: "NVIDIA GeForce RTX 3080"
+    memory: 10  # GB GDDR6X
+    cuda_cores: 8704
+    compute_capability: 8.6
+    driver_version: "525.60.11"  # Minimum required
+    
+  storage:
+    type: "NVMe SSD"
+    capacity: 1000  # GB minimum
+    read_speed: 7000  # MB/s
+    write_speed: 5000  # MB/s
+
+resource_allocation:
+  # Docker resource limits optimized for this hardware
+  orchestrator:
+    cpu_limit: "4.0"  # cores
+    cpu_reservation: "1.0"
+    memory_limit: "8G"
+    memory_reservation: "2G"
+    
+  evolution_api:
+    cpu_limit: "6.0"  # More CPU for evolution computations
+    cpu_reservation: "2.0"
+    memory_limit: "12G"
+    memory_reservation: "4G"
+    gpu_enabled: true
+    gpu_device_ids: ["0"]  # Use RTX 3080
+    
+  indexagent:
+    cpu_limit: "2.0"
+    cpu_reservation: "0.5"
+    memory_limit: "4G"
+    memory_reservation: "1G"
+    
+  postgres:
+    cpu_limit: "2.0"
+    cpu_reservation: "1.0"
+    memory_limit: "4G"
+    memory_reservation: "2G"
+    # PostgreSQL specific tuning
+    shared_buffers: "1GB"
+    effective_cache_size: "3GB"
+    maintenance_work_mem: "256MB"
+    work_mem: "32MB"
+    max_connections: 200
+    
+  redis:
+    cpu_limit: "1.0"
+    cpu_reservation: "0.5"
+    memory_limit: "2G"
+    memory_reservation: "512M"
+    maxmemory: "1800mb"
+    maxmemory_policy: "allkeys-lru"
+
+performance_tuning:
+  # System-level optimizations
+  system:
+    swappiness: 10
+    transparent_hugepages: "disabled"
+    cpu_governor: "performance"
+    
+  # Network optimizations
+  network:
+    tcp_keepalive_time: 60
+    tcp_keepalive_intvl: 10
+    tcp_keepalive_probes: 6
+    somaxconn: 65535
+    netdev_max_backlog: 5000
+    
+  # Application-level settings
+  application:
+    worker_processes: 8  # Match CPU cores
+    worker_connections: 2048
+    keepalive_timeout: 65
+    client_max_body_size: "100m"
+    
+  # Evolution engine settings
+  evolution:
+    population_size: 200  # Larger population with more RAM
+    max_generations: 100
+    parallel_evaluations: 16  # Utilize all threads
+    gpu_acceleration: true
+    batch_size: 64  # For GPU operations
+    
+  # Database connection pooling
+  database:
+    pool_size: 20
+    max_overflow: 40
+    pool_timeout: 30
+    pool_recycle: 3600
+
+monitoring:
+  # Metrics collection intervals
+  system_metrics_interval: 5  # seconds
+  application_metrics_interval: 10
+  gpu_metrics_interval: 5
+  
+  # Resource usage thresholds for alerts
+  thresholds:
+    cpu_warning: 70
+    cpu_critical: 85
+    memory_warning: 75
+    memory_critical: 90
+    gpu_memory_warning: 80
+    gpu_memory_critical: 95
+    disk_usage_warning: 80
+    disk_usage_critical: 90
+
+gpu_configuration:
+  # NVIDIA specific settings
+  nvidia:
+    persistence_mode: true
+    power_limit: 320  # Watts (RTX 3080 default)
+    gpu_clock_offset: 0  # MHz (0 for stability)
+    memory_clock_offset: 0  # MHz (0 for stability)
+    fan_control: "auto"
+    
+  # CUDA settings
+  cuda:
+    visible_devices: "0"
+    device_order: "PCI_BUS_ID"
+    force_gpu_compatible: true
+    
+  # Docker GPU runtime
+  docker:
+    runtime: "nvidia"
+    capabilities: ["gpu", "compute", "utility"]
+    require_cuda: ">=11.0"
+
+optimization_flags:
+  # Compiler optimizations for Python
+  python:
+    PYTHONOPTIMIZE: 2
+    PYTHONHASHSEED: 0
+    PYTHONDONTWRITEBYTECODE: 1
+    
+  # NumPy/SciPy optimizations
+  numpy:
+    OMP_NUM_THREADS: 8
+    OPENBLAS_NUM_THREADS: 8
+    MKL_NUM_THREADS: 8
+    
+  # TensorFlow/PyTorch (if used)
+  ml_frameworks:
+    TF_FORCE_GPU_ALLOW_GROWTH: true
+    TF_GPU_THREAD_MODE: "gpu_private"
+    PYTORCH_CUDA_ALLOC_CONF: "max_split_size_mb:512"
+
+backup_configuration:
+  # Optimized for fast SSD
+  parallel_compression: true
+  compression_threads: 4
+  compression_level: 6  # Balance speed/size
+  
+security_settings:
+  # Hardware-accelerated encryption
+  encryption:
+    algorithm: "AES-256-GCM"
+    use_hardware_acceleration: true
+    
+  # Memory protection
+  memory_protection:
+    enable_aslr: true
+    enable_nx: true
+    secure_memory_wipe: true
+
+# Deployment notes
+notes: |
+  This configuration is optimized for Intel i7 (8+ cores) with RTX 3080 GPU.
+  
+  Key optimizations:
+  1. CPU: Utilizes all 8 cores with appropriate limits
+  2. Memory: 32GB allocated efficiently across services
+  3. GPU: RTX 3080 assigned to evolution engine for ML operations
+  4. Storage: Assumes fast NVMe SSD for database and caching
+  
+  Prerequisites:
+  - NVIDIA Driver 525.60.11 or newer
+  - CUDA Toolkit 11.0 or newer
+  - Docker with nvidia-container-runtime
+  
+  Performance expectations:
+  - API response time: < 30ms average
+  - Evolution trials: 2-3x faster with GPU
+  - Pattern discovery: 100+ patterns/hour
+  - Concurrent users: 500+

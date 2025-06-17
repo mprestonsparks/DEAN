@@ -1,0 +1,153 @@
+# Monitoring Configuration
+# Defines metrics, logging, and alerting for DEAN system
+
+monitoring:
+  # Metrics collection
+  metrics:
+    enabled: true
+    export_interval: 15  # seconds
+    retention_days: 30
+    
+    # Prometheus configuration
+    prometheus:
+      endpoint: "${PROMETHEUS_ENDPOINT:-http://localhost:9090}"
+      pushgateway: "${PROMETHEUS_PUSHGATEWAY:-http://localhost:9091}"
+      job_name: "dean_orchestration"
+      
+    # Key metrics to track
+    tracked_metrics:
+      # System metrics
+      - name: "dean_active_agents"
+        type: "gauge"
+        description: "Number of active agents in the system"
+        
+      - name: "dean_evolution_trials"
+        type: "counter"
+        description: "Total number of evolution trials run"
+        
+      - name: "dean_api_requests"
+        type: "counter"
+        description: "API requests by endpoint and status"
+        labels: ["endpoint", "method", "status"]
+        
+      - name: "dean_api_latency"
+        type: "histogram"
+        description: "API request latency in seconds"
+        labels: ["endpoint", "method"]
+        buckets: [0.1, 0.5, 1.0, 2.5, 5.0, 10.0]
+        
+      - name: "dean_pattern_matches"
+        type: "counter"
+        description: "Pattern matches by type"
+        labels: ["pattern_type", "repository"]
+        
+      - name: "dean_resource_usage"
+        type: "gauge"
+        description: "Resource usage by service"
+        labels: ["service", "resource_type"]
+        
+  # Logging configuration
+  logging:
+    level: "${LOG_LEVEL:-INFO}"
+    format: "json"  # json, text
+    
+    # Log destinations
+    outputs:
+      - type: "console"
+        enabled: true
+        
+      - type: "file"
+        enabled: true
+        path: "logs/dean-orchestration.log"
+        rotation:
+          max_size: "100MB"
+          max_files: 10
+          
+      - type: "elasticsearch"
+        enabled: false
+        url: "${ELASTICSEARCH_URL:-http://localhost:9200}"
+        index: "dean-logs"
+        
+    # Structured logging fields
+    fields:
+      service: "dean-orchestration"
+      environment: "${ENVIRONMENT:-development}"
+      version: "${VERSION:-unknown}"
+      
+  # Distributed tracing
+  tracing:
+    enabled: true
+    sampling_rate: 0.1  # 10% sampling in production
+    
+    # Jaeger configuration
+    jaeger:
+      endpoint: "${JAEGER_ENDPOINT:-http://localhost:14268}"
+      service_name: "dean-orchestration"
+      
+  # Alerting configuration
+  alerts:
+    enabled: true
+    
+    # Alert channels
+    channels:
+      - name: "email"
+        type: "email"
+        enabled: false
+        config:
+          smtp_host: "${SMTP_HOST}"
+          smtp_port: "${SMTP_PORT:-587}"
+          from: "dean-alerts@example.com"
+          to: ["ops-team@example.com"]
+          
+      - name: "slack"
+        type: "slack"
+        enabled: false
+        config:
+          webhook_url: "${SLACK_WEBHOOK_URL}"
+          channel: "#dean-alerts"
+          
+      - name: "pagerduty"
+        type: "pagerduty"
+        enabled: false
+        config:
+          integration_key: "${PAGERDUTY_KEY}"
+          
+    # Alert rules
+    rules:
+      - name: "high_error_rate"
+        condition: "rate(dean_api_requests{status=~'5..'}[5m]) > 0.1"
+        severity: "critical"
+        channels: ["email", "pagerduty"]
+        
+      - name: "evolution_trial_failures"
+        condition: "rate(dean_evolution_trials{status='failed'}[1h]) > 5"
+        severity: "warning"
+        channels: ["slack"]
+        
+      - name: "service_down"
+        condition: "up{job='dean_orchestration'} == 0"
+        severity: "critical"
+        channels: ["email", "pagerduty"]
+        
+      - name: "high_memory_usage"
+        condition: "dean_resource_usage{resource_type='memory'} > 0.9"
+        severity: "warning"
+        channels: ["slack"]
+        
+# Health check endpoints
+health_checks:
+  - name: "orchestration_api"
+    url: "http://localhost:8082/health"
+    interval: 30
+    timeout: 5
+    
+  - name: "service_connectivity"
+    url: "http://localhost:8082/health/services"
+    interval: 60
+    timeout: 10
+    
+# Stakeholder Input Required:
+# - Production metrics retention policies
+# - Alert thresholds and escalation procedures
+# - Log aggregation strategy
+# - Compliance requirements for monitoring data

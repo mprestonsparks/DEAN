@@ -1,0 +1,212 @@
+version: '3.8'
+
+# Development environment combining stub services with orchestration layer
+
+services:
+  # Infrastructure Services
+  postgres:
+    image: postgres:15-alpine
+    container_name: dean-postgres-dev
+    environment:
+      - POSTGRES_USER=dean
+      - POSTGRES_PASSWORD=dean123
+      - POSTGRES_MULTIPLE_DATABASES=orchestration,indexagent,airflow,evolution
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-postgres.sh:/docker-entrypoint-initdb.d/init-postgres.sh:ro
+    networks:
+      - dean-dev-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dean"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: dean-redis-dev
+    ports:
+      - "6379:6379"
+    networks:
+      - dean-dev-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Service Stubs
+  indexagent-stub:
+    build:
+      context: ./service_stubs
+      dockerfile: ./indexagent/Dockerfile
+    container_name: dean-indexagent-stub
+    ports:
+      - "8081:8081"
+    environment:
+      - SERVICE_NAME=indexagent-stub
+      - SERVICE_PORT=8081
+      - LOG_LEVEL=INFO
+    networks:
+      - dean-dev-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  airflow-stub:
+    build:
+      context: ./service_stubs
+      dockerfile: ./airflow/Dockerfile
+    container_name: dean-airflow-stub
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVICE_NAME=airflow-stub
+      - SERVICE_PORT=8080
+      - AIRFLOW_USERNAME=airflow
+      - AIRFLOW_PASSWORD=airflow
+      - LOG_LEVEL=INFO
+    networks:
+      - dean-dev-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  evolution-stub:
+    build:
+      context: ./service_stubs
+      dockerfile: ./evolution/Dockerfile
+    container_name: dean-evolution-stub
+    ports:
+      - "8083:8083"
+    environment:
+      - SERVICE_NAME=evolution-stub
+      - SERVICE_PORT=8083
+      - LOG_LEVEL=INFO
+    networks:
+      - dean-dev-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # DEAN Orchestration Layer
+  orchestration:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dean-orchestration
+    ports:
+      - "8082:8082"
+    environment:
+      - DEAN_ENV=development
+      - DEAN_SERVER_HOST=0.0.0.0
+      - DEAN_SERVER_PORT=8082
+      - INDEXAGENT_API_URL=http://indexagent-stub:8081
+      - AIRFLOW_API_URL=http://airflow-stub:8080
+      - EVOLUTION_API_URL=http://evolution-stub:8083
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=dean
+      - POSTGRES_PASSWORD=dean123
+      - POSTGRES_DB=orchestration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./src:/app/src:ro
+      - ./configs:/app/configs:ro
+      - ./logs:/app/logs
+    networks:
+      - dean-dev-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      indexagent-stub:
+        condition: service_healthy
+      airflow-stub:
+        condition: service_healthy
+      evolution-stub:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # Optional: Prometheus for monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: dean-prometheus-dev
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./configs/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - dean-dev-network
+    profiles:
+      - monitoring
+
+  # Optional: Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: dean-grafana-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./configs/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./configs/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - dean-dev-network
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+
+networks:
+  dean-dev-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:

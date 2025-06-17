@@ -1,0 +1,1054 @@
+openapi: 3.0.3
+info:
+  title: DEAN Orchestration API
+  description: |
+    The DEAN (Distributed Evolutionary Agent Network) API provides comprehensive endpoints for managing
+    evolutionary optimization of code through autonomous agents. This API enables creation and management
+    of agents, evolution trials, pattern discovery, and system monitoring.
+  version: 1.0.0
+  contact:
+    name: DEAN Support Team
+    email: support@dean-orchestration.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.dean-orchestration.com
+    description: Production server
+  - url: https://staging.dean-orchestration.com
+    description: Staging server
+  - url: http://localhost:8082
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Authentication
+    description: User authentication and token management
+  - name: Agents
+    description: Agent creation and management
+  - name: Evolution
+    description: Evolution trial operations
+  - name: Patterns
+    description: Pattern discovery and analysis
+  - name: Metrics
+    description: System metrics and monitoring
+  - name: Health
+    description: Service health checks
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and receive access tokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              admin:
+                value:
+                  username: admin
+                  password: admin123
+      responses:
+        '200':
+          description: Successful authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Use refresh token to get new access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      description: Invalidate current tokens
+      responses:
+        '200':
+          description: Successfully logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Successfully logged out
+
+  /api/agents:
+    get:
+      tags:
+        - Agents
+      summary: List all agents
+      description: Retrieve a list of all agents with optional filtering
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, inactive, evolving]
+          description: Filter by agent status
+        - in: query
+          name: language
+          schema:
+            type: string
+            enum: [python, javascript, java]
+          description: Filter by programming language
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+          description: Maximum number of results
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Number of results to skip
+      responses:
+        '200':
+          description: List of agents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Agent'
+                  total:
+                    type: integer
+                    example: 42
+                  limit:
+                    type: integer
+                    example: 100
+                  offset:
+                    type: integer
+                    example: 0
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    post:
+      tags:
+        - Agents
+      summary: Create new agent
+      description: Create a new evolutionary agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentRequest'
+            examples:
+              pythonAgent:
+                value:
+                  name: search-optimizer
+                  language: python
+                  capabilities:
+                    - search
+                    - optimize
+                    - analyze
+                  initial_fitness: 0.5
+      responses:
+        '201':
+          description: Agent created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/agents/{agentId}:
+    get:
+      tags:
+        - Agents
+      summary: Get agent details
+      description: Retrieve detailed information about a specific agent
+      parameters:
+        - in: path
+          name: agentId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Agent ID
+      responses:
+        '200':
+          description: Agent details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    put:
+      tags:
+        - Agents
+      summary: Update agent
+      description: Update agent configuration
+      parameters:
+        - in: path
+          name: agentId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAgentRequest'
+      responses:
+        '200':
+          description: Agent updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    delete:
+      tags:
+        - Agents
+      summary: Delete agent
+      description: Remove an agent from the system
+      parameters:
+        - in: path
+          name: agentId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Agent deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/evolution/start:
+    post:
+      tags:
+        - Evolution
+      summary: Start evolution trial
+      description: Begin a new evolution trial with specified parameters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartEvolutionRequest'
+            examples:
+              standard:
+                value:
+                  repository: my-optimization-project
+                  generations: 10
+                  population_size: 50
+                  mutation_rate: 0.15
+                  crossover_rate: 0.7
+                  fitness_threshold: 0.9
+                  selection_method: tournament
+      responses:
+        '201':
+          description: Evolution trial started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvolutionTrial'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
+  /api/evolution/trials:
+    get:
+      tags:
+        - Evolution
+      summary: List evolution trials
+      description: Get all evolution trials with optional filtering
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [running, completed, failed, cancelled]
+          description: Filter by trial status
+        - in: query
+          name: start_date
+          schema:
+            type: string
+            format: date-time
+          description: Filter trials started after this date
+        - in: query
+          name: end_date
+          schema:
+            type: string
+            format: date-time
+          description: Filter trials started before this date
+      responses:
+        '200':
+          description: List of evolution trials
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  trials:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EvolutionTrial'
+                  total:
+                    type: integer
+
+  /api/evolution/trials/{trialId}:
+    get:
+      tags:
+        - Evolution
+      summary: Get trial details
+      description: Retrieve detailed information about a specific evolution trial
+      parameters:
+        - in: path
+          name: trialId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Trial details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvolutionTrialDetail'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/evolution/trials/{trialId}/stop:
+    post:
+      tags:
+        - Evolution
+      summary: Stop evolution trial
+      description: Stop a running evolution trial
+      parameters:
+        - in: path
+          name: trialId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Trial stopped successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvolutionTrial'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/patterns:
+    get:
+      tags:
+        - Patterns
+      summary: List discovered patterns
+      description: Retrieve patterns discovered during evolution trials
+      parameters:
+        - in: query
+          name: min_confidence
+          schema:
+            type: number
+            format: float
+            minimum: 0
+            maximum: 1
+            default: 0.7
+          description: Minimum confidence score
+        - in: query
+          name: category
+          schema:
+            type: string
+            enum: [optimization, refactoring, security, performance]
+          description: Pattern category
+        - in: query
+          name: language
+          schema:
+            type: string
+            enum: [python, javascript, java]
+          description: Programming language
+      responses:
+        '200':
+          description: List of patterns
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  patterns:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Pattern'
+                  total:
+                    type: integer
+
+  /api/patterns/{patternId}:
+    get:
+      tags:
+        - Patterns
+      summary: Get pattern details
+      description: Retrieve detailed information about a specific pattern
+      parameters:
+        - in: path
+          name: patternId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Pattern details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatternDetail'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /api/patterns/{patternId}/apply:
+    post:
+      tags:
+        - Patterns
+      summary: Apply pattern
+      description: Apply a discovered pattern to specified code
+      parameters:
+        - in: path
+          name: patternId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplyPatternRequest'
+      responses:
+        '200':
+          description: Pattern applied successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplyPatternResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
+  /api/metrics:
+    get:
+      tags:
+        - Metrics
+      summary: Get system metrics
+      description: Retrieve current system performance metrics
+      responses:
+        '200':
+          description: System metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemMetrics'
+
+  /api/metrics/history:
+    get:
+      tags:
+        - Metrics
+      summary: Get metrics history
+      description: Retrieve historical system metrics
+      parameters:
+        - in: query
+          name: period
+          schema:
+            type: string
+            enum: [hour, day, week, month]
+            default: day
+          description: Time period for metrics
+        - in: query
+          name: metric_type
+          schema:
+            type: string
+            enum: [cpu, memory, api_calls, evolution_progress]
+          description: Type of metric to retrieve
+      responses:
+        '200':
+          description: Historical metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  period:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        timestamp:
+                          type: string
+                          format: date-time
+                        value:
+                          type: number
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check if the service is healthy
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /ws:
+    get:
+      tags:
+        - WebSocket
+      summary: WebSocket connection
+      description: |
+        Establish WebSocket connection for real-time updates.
+        
+        **WebSocket Events:**
+        
+        Sent by server:
+        - `evolution.progress`: Evolution trial progress updates
+        - `pattern.discovered`: New pattern discovered
+        - `agent.status`: Agent status changes
+        - `system.metrics`: Real-time system metrics
+        
+        Sent by client:
+        - `subscribe`: Subscribe to specific event types
+        - `unsubscribe`: Unsubscribe from event types
+        - `ping`: Keep connection alive
+      security:
+        - bearerAuth: []
+      responses:
+        '101':
+          description: Switching Protocols - WebSocket connection established
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: admin
+        password:
+          type: string
+          minLength: 8
+          format: password
+          example: admin123
+
+    RefreshRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          format: jwt
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          format: jwt
+          description: JWT access token
+        refresh_token:
+          type: string
+          format: jwt
+          description: JWT refresh token
+        token_type:
+          type: string
+          example: bearer
+        expires_in:
+          type: integer
+          description: Token expiry time in seconds
+          example: 1800
+
+    Agent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174000
+        name:
+          type: string
+          example: search-optimizer
+        language:
+          type: string
+          enum: [python, javascript, java]
+          example: python
+        status:
+          type: string
+          enum: [active, inactive, evolving]
+          example: active
+        fitness_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          example: 0.85
+        capabilities:
+          type: array
+          items:
+            type: string
+          example: [search, optimize, analyze]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        evolution_count:
+          type: integer
+          description: Number of evolution trials participated in
+          example: 5
+
+    CreateAgentRequest:
+      type: object
+      required:
+        - name
+        - language
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+          example: search-optimizer
+        language:
+          type: string
+          enum: [python, javascript, java]
+          example: python
+        capabilities:
+          type: array
+          items:
+            type: string
+          example: [search, optimize, analyze]
+        initial_fitness:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          default: 0.5
+
+    UpdateAgentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+        status:
+          type: string
+          enum: [active, inactive]
+        capabilities:
+          type: array
+          items:
+            type: string
+
+    StartEvolutionRequest:
+      type: object
+      required:
+        - repository
+        - generations
+      properties:
+        repository:
+          type: string
+          description: Repository or project to optimize
+          example: my-optimization-project
+        generations:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Number of generations to evolve
+          example: 10
+        population_size:
+          type: integer
+          minimum: 10
+          maximum: 1000
+          default: 50
+          description: Size of agent population
+        mutation_rate:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          default: 0.15
+          description: Probability of mutation
+        crossover_rate:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          default: 0.7
+          description: Probability of crossover
+        fitness_threshold:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          default: 0.9
+          description: Target fitness score
+        selection_method:
+          type: string
+          enum: [tournament, roulette, rank]
+          default: tournament
+          description: Selection algorithm
+
+    EvolutionTrial:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        repository:
+          type: string
+        status:
+          type: string
+          enum: [running, completed, failed, cancelled]
+        current_generation:
+          type: integer
+        total_generations:
+          type: integer
+        best_fitness:
+          type: number
+          format: float
+        average_fitness:
+          type: number
+          format: float
+        patterns_discovered:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+
+    EvolutionTrialDetail:
+      allOf:
+        - $ref: '#/components/schemas/EvolutionTrial'
+        - type: object
+          properties:
+            generations:
+              type: array
+              items:
+                type: object
+                properties:
+                  generation:
+                    type: integer
+                  best_fitness:
+                    type: number
+                  average_fitness:
+                    type: number
+                  patterns_found:
+                    type: integer
+            agents:
+              type: array
+              items:
+                $ref: '#/components/schemas/Agent'
+            parameters:
+              $ref: '#/components/schemas/StartEvolutionRequest'
+
+    Pattern:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Async Handler Optimization
+        category:
+          type: string
+          enum: [optimization, refactoring, security, performance]
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          example: 0.92
+        impact_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          example: 0.85
+        description:
+          type: string
+          example: Convert synchronous operations to async for improved performance
+        language:
+          type: string
+          enum: [python, javascript, java]
+        discovered_at:
+          type: string
+          format: date-time
+        usage_count:
+          type: integer
+          description: Number of times pattern has been applied
+
+    PatternDetail:
+      allOf:
+        - $ref: '#/components/schemas/Pattern'
+        - type: object
+          properties:
+            code_before:
+              type: string
+              description: Example code before pattern application
+            code_after:
+              type: string
+              description: Example code after pattern application
+            implementation_guide:
+              type: string
+              description: Detailed guide for applying the pattern
+            performance_metrics:
+              type: object
+              properties:
+                execution_time_improvement:
+                  type: string
+                  example: -65%
+                memory_usage_improvement:
+                  type: string
+                  example: -30%
+            related_patterns:
+              type: array
+              items:
+                type: string
+                format: uuid
+
+    ApplyPatternRequest:
+      type: object
+      required:
+        - target_file
+        - target_function
+      properties:
+        target_file:
+          type: string
+          description: File path to apply pattern to
+          example: src/handlers/search.py
+        target_function:
+          type: string
+          description: Function name to optimize
+          example: search_database
+        dry_run:
+          type: boolean
+          default: false
+          description: Preview changes without applying
+
+    ApplyPatternResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        changes_made:
+          type: integer
+          description: Number of changes applied
+        diff:
+          type: string
+          description: Diff of changes made
+        estimated_improvement:
+          type: object
+          properties:
+            performance:
+              type: string
+              example: +45%
+            readability:
+              type: string
+              example: +20%
+
+    SystemMetrics:
+      type: object
+      properties:
+        cpu_usage:
+          type: number
+          format: float
+          example: 42.5
+        memory_usage:
+          type: number
+          format: float
+          example: 68.2
+        active_agents:
+          type: integer
+          example: 15
+        running_trials:
+          type: integer
+          example: 3
+        patterns_discovered_today:
+          type: integer
+          example: 12
+        api_requests_per_minute:
+          type: integer
+          example: 127
+        average_response_time_ms:
+          type: number
+          format: float
+          example: 45.2
+        uptime_seconds:
+          type: integer
+          example: 864000
+
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: healthy
+        version:
+          type: string
+          example: 1.0.0
+        uptime:
+          type: integer
+          description: Uptime in seconds
+          example: 3600
+        services:
+          type: object
+          properties:
+            database:
+              type: string
+              enum: [healthy, unhealthy]
+            redis:
+              type: string
+              enum: [healthy, unhealthy]
+            evolution_engine:
+              type: string
+              enum: [healthy, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+        details:
+          type: object
+          description: Additional error details
+
+  responses:
+    UnauthorizedError:
+      description: Authentication information is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Unauthorized
+            code: AUTH_001
+            details:
+              message: Invalid or expired token
+
+    BadRequestError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Bad Request
+            code: VAL_001
+            details:
+              field: generations
+              message: Value must be between 1 and 100
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Not Found
+            code: NOT_001
+            details:
+              resource: agent
+              id: 123e4567-e89b-12d3-a456-426614174000
+
+    RateLimitError:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Too Many Requests
+            code: RATE_001
+            details:
+              limit: 5
+              window: 60
+              retry_after: 45

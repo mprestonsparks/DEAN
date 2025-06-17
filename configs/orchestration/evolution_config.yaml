@@ -1,0 +1,72 @@
+# Evolution Trial Configuration
+# This file defines default settings for evolution trials
+
+evolution:
+  # Default trial parameters
+  defaults:
+    generations: 10
+    population_size: 20
+    mutation_rate: 0.1
+    crossover_rate: 0.7
+    elite_size: 2
+    tournament_size: 3
+    
+  # Fitness evaluation
+  fitness:
+    # Weights for different metrics
+    weights:
+      code_quality: 0.3
+      test_coverage: 0.2
+      performance: 0.2
+      maintainability: 0.2
+      documentation: 0.1
+    
+    # Minimum thresholds
+    thresholds:
+      code_quality: 0.6
+      test_coverage: 0.7
+      performance: 0.5
+      maintainability: 0.6
+      documentation: 0.5
+  
+  # Resource constraints
+  constraints:
+    max_trial_duration: 3600  # seconds
+    max_memory_per_agent: 512  # MB
+    max_cpu_per_agent: 1.0  # cores
+    max_concurrent_evaluations: 5
+    
+  # Pattern extraction
+  patterns:
+    min_frequency: 3  # Minimum occurrences to consider a pattern
+    confidence_threshold: 0.8
+    max_patterns_per_generation: 10
+    
+# Repository-specific overrides
+repositories:
+  indexagent:
+    population_size: 15
+    fitness:
+      weights:
+        test_coverage: 0.4  # Higher weight for test coverage
+        code_quality: 0.3
+        
+  airflow-hub:
+    generations: 15
+    fitness:
+      weights:
+        performance: 0.4  # Higher weight for DAG performance
+        maintainability: 0.3
+        
+  market-analysis:
+    population_size: 25
+    fitness:
+      weights:
+        performance: 0.5  # Critical for real-time analysis
+        code_quality: 0.2
+
+# Stakeholder Input Required:
+# - Optimal population sizes for different repository types
+# - Fitness function refinements based on business priorities
+# - Resource allocation strategies for distributed evolution
+# - Pattern quality metrics and thresholds

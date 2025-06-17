@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+  # IndexAgent API Stub - Port 8081
+  indexagent-stub:
+    build:
+      context: ./indexagent
+      dockerfile: Dockerfile
+    container_name: indexagent-stub
+    ports:
+      - "8081:8081"
+    environment:
+      - SERVICE_NAME=indexagent-stub
+      - SERVICE_PORT=8081
+      - LOG_LEVEL=INFO
+    networks:
+      - dean-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Airflow API Stub - Port 8080  
+  airflow-stub:
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile
+    container_name: airflow-stub
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVICE_NAME=airflow-stub
+      - SERVICE_PORT=8080
+      - AIRFLOW_USERNAME=airflow
+      - AIRFLOW_PASSWORD=airflow
+      - LOG_LEVEL=INFO
+    networks:
+      - dean-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Evolution API Stub - Port 8083
+  evolution-stub:
+    build:
+      context: ./evolution
+      dockerfile: Dockerfile
+    container_name: evolution-stub
+    ports:
+      - "8083:8083"
+    environment:
+      - SERVICE_NAME=evolution-stub
+      - SERVICE_PORT=8083
+      - LOG_LEVEL=INFO
+    networks:
+      - dean-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Shared PostgreSQL for development
+  postgres-dev:
+    image: postgres:15-alpine
+    container_name: postgres-dev
+    environment:
+      - POSTGRES_USER=dean
+      - POSTGRES_PASSWORD=dean123
+      - POSTGRES_DB=dean_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - dean-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dean"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Shared Redis for development
+  redis-dev:
+    image: redis:7-alpine
+    container_name: redis-dev
+    ports:
+      - "6379:6379"
+    networks:
+      - dean-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  dean-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
