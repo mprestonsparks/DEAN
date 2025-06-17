@@ -57,7 +57,7 @@ websockets==12.0
 tenacity==8.2.3
 
 # Apache Airflow client
-apache-airflow-client==2.7.0
+apache-airflow-client==3.0.2
 
 # Evolution and ML (optional)
 numpy==1.26.2
