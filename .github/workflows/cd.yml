@@ -108,7 +108,7 @@ jobs:
           aws eks update-kubeconfig --name dean-staging-cluster --region us-east-1
           
       - name: Setup Helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@v4
         with:
           version: 'v3.13.0'
           
@@ -182,7 +182,7 @@ jobs:
           aws eks update-kubeconfig --name dean-production-cluster --region us-east-1
           
       - name: Setup Helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@v4
         with:
           version: 'v3.13.0'
           
@@ -300,7 +300,7 @@ jobs:
           aws eks update-kubeconfig --name dean-production-cluster --region us-east-1
           
       - name: Setup Helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@v4
         
       - name: Perform rollback
         run: |
