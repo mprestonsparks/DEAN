@@ -49,9 +49,24 @@ If nginx fails to start:
 3. Access orchestrator directly at http://localhost:8082
 
 ### SSL Certificate Issues
-Generate self-signed certificates:
+
+#### Option 1: Convert Existing PFX Certificate (Windows)
+If you have an existing localhost.pfx certificate:
+```powershell
+# Convert PFX to nginx-compatible format
+.\scripts\convert_pfx_to_pem.ps1 -PfxPath .\certs\localhost.pfx
+
+# Or use the comprehensive setup script
+.\scripts\setup_nginx_certs.ps1 -PfxPath .\certs\localhost.pfx
+```
+
+#### Option 2: Generate New Self-Signed Certificates
 ```bash
+# Linux/macOS
 ./scripts/generate_ssl_certs.sh
+
+# Windows (PowerShell)
+.\scripts\setup_nginx_certs.ps1 -GenerateNew
 ```
 
 ### Permission Issues on Windows
