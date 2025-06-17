@@ -193,7 +193,7 @@ jobs:
             -o yaml > backup-${{ github.run_id }}.yaml
             
       - name: Upload backup
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: production-backup-${{ github.run_id }}
           path: backup-${{ github.run_id }}.yaml
