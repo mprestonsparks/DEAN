@@ -1,0 +1,391 @@
+name: Configuration Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  validate-configuration:
+    name: Validate Configuration Files
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Check for BOM in configuration files
+      run: |
+        echo "Checking for BOM characters in configuration files..."
+        
+        # Find all config files
+        config_files=$(find . -type f \( -name "*.yml" -o -name "*.yaml" -o -name "*.conf" -o -name "*.json" -o -name "*.xml" -o -name ".env*" \) -not -path "./.git/*")
+        
+        has_bom=false
+        for file in $config_files; do
+          if [ -f "$file" ]; then
+            # Check for UTF-8 BOM (EF BB BF)
+            if head -c 3 "$file" | od -An -tx1 | grep -q "ef bb bf"; then
+              echo "❌ BOM found in: $file"
+              has_bom=true
+            fi
+          fi
+        done
+        
+        if [ "$has_bom" = true ]; then
+          echo "::error::BOM characters found in configuration files. Remove them before merging."
+          exit 1
+        else
+          echo "✅ No BOM characters found"
+        fi
+    
+    - name: Validate YAML syntax
+      run: |
+        echo "Validating YAML files..."
+        
+        # Install yamllint
+        pip install yamllint
+        
+        # Check all YAML files
+        find . -type f \( -name "*.yml" -o -name "*.yaml" \) -not -path "./.git/*" | while read file; do
+          echo "Checking: $file"
+          yamllint -d relaxed "$file" || exit 1
+        done
+        
+        echo "✅ All YAML files are valid"
+    
+    - name: Check for sensitive data
+      run: |
+        echo "Checking for hardcoded sensitive data..."
+        
+        # Patterns to check for
+        patterns=(
+          'password\s*[:=]\s*["\x27]?[A-Za-z0-9@#$%^&*()_+]{8,}["\x27]?'
+          'secret\s*[:=]\s*["\x27]?[A-Za-z0-9]{16,}["\x27]?'
+          'api[_-]?key\s*[:=]\s*["\x27]?[A-Za-z0-9]{20,}["\x27]?'
+          'token\s*[:=]\s*["\x27]?[A-Za-z0-9]{20,}["\x27]?'
+        )
+        
+        # Exclude .env.template and example files
+        exclude_pattern='(\.env\.template|\.example|example\.|test\.)'
+        
+        has_secrets=false
+        for pattern in "${patterns[@]}"; do
+          matches=$(grep -rEi "$pattern" . --include="*.yml" --include="*.yaml" --include="*.conf" --include="*.json" --exclude-dir=.git | grep -vE "$exclude_pattern" || true)
+          if [ ! -z "$matches" ]; then
+            echo "❌ Possible sensitive data found:"
+            echo "$matches"
+            has_secrets=true
+          fi
+        done
+        
+        if [ "$has_secrets" = true ]; then
+          echo "::warning::Possible sensitive data detected. Please review before merging."
+        else
+          echo "✅ No obvious sensitive data found"
+        fi
+    
+    - name: Validate Docker Compose files
+      run: |
+        echo "Validating Docker Compose configuration..."
+        
+        # Check docker-compose files
+        for file in docker-compose.yml docker-compose.prod.yml docker-compose.dev.yml; do
+          if [ -f "$file" ]; then
+            echo "Validating: $file"
+            docker compose -f "$file" config > /dev/null || exit 1
+          fi
+        done
+        
+        echo "✅ Docker Compose files are valid"
+    
+    - name: Check environment template
+      run: |
+        echo "Checking .env.template..."
+        
+        if [ ! -f ".env.template" ]; then
+          echo "::error::.env.template file not found"
+          exit 1
+        fi
+        
+        # Check for required variables
+        required_vars=(
+          "JWT_SECRET_KEY"
+          "POSTGRES_USER"
+          "POSTGRES_PASSWORD"
+          "POSTGRES_DB"
+          "REDIS_PASSWORD"
+          "DEAN_SERVICE_API_KEY"
+        )
+        
+        missing_vars=()
+        for var in "${required_vars[@]}"; do
+          if ! grep -q "^${var}=" .env.template; then
+            missing_vars+=("$var")
+          fi
+        done
+        
+        if [ ${#missing_vars[@]} -ne 0 ]; then
+          echo "::error::Missing required variables in .env.template: ${missing_vars[*]}"
+          exit 1
+        fi
+        
+        echo "✅ .env.template contains all required variables"
+    
+    - name: Check database naming consistency
+      run: |
+        echo "Checking database naming consistency..."
+        
+        # Expected database name
+        expected_db="dean_production"
+        
+        # Check in various files
+        files_to_check=(
+          ".env.template"
+          "docker-compose.yml"
+          "docker-compose.prod.yml"
+          "postgres/init.sql"
+          "postgres/00-create-schema.sql"
+          "postgres/01-init-database.sql"
+        )
+        
+        inconsistencies=()
+        for file in "${files_to_check[@]}"; do
+          if [ -f "$file" ]; then
+            # Look for database references
+            if grep -E "(POSTGRES_DB|DATABASE|database.*dean)" "$file" | grep -v "$expected_db" | grep -qE "dean_prod|dean_dev|dean_test"; then
+              inconsistencies+=("$file")
+            fi
+          fi
+        done
+        
+        if [ ${#inconsistencies[@]} -ne 0 ]; then
+          echo "::warning::Database naming inconsistencies found in: ${inconsistencies[*]}"
+          echo "Expected database name: $expected_db"
+        else
+          echo "✅ Database naming is consistent"
+        fi
+
+  validate-scripts:
+    name: Validate Scripts
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Validate Python scripts
+      run: |
+        echo "Checking Python script syntax..."
+        
+        # Install flake8 for basic validation
+        pip install flake8
+        
+        # Find all Python scripts
+        find scripts -name "*.py" -type f | while read script; do
+          echo "Checking: $script"
+          python -m py_compile "$script" || exit 1
+          flake8 --max-line-length=120 --ignore=E501,W503 "$script" || true
+        done
+        
+        echo "✅ Python scripts are valid"
+    
+    - name: Validate Bash scripts
+      run: |
+        echo "Checking Bash script syntax..."
+        
+        # Find all shell scripts
+        find scripts -name "*.sh" -type f | while read script; do
+          echo "Checking: $script"
+          bash -n "$script" || exit 1
+        done
+        
+        echo "✅ Bash scripts are valid"
+    
+    - name: Check script permissions
+      run: |
+        echo "Checking script permissions..."
+        
+        # Scripts that should be executable
+        executable_scripts=(
+          "scripts/deploy/deploy_dean_system.sh"
+          "scripts/deploy/setup_ssl_certificates.sh"
+          "scripts/deploy/validate_environment.sh"
+          "scripts/deploy/check_ports.sh"
+          "scripts/troubleshoot.sh"
+          "quick_start.sh"
+        )
+        
+        non_executable=()
+        for script in "${executable_scripts[@]}"; do
+          if [ -f "$script" ] && [ ! -x "$script" ]; then
+            non_executable+=("$script")
+          fi
+        done
+        
+        if [ ${#non_executable[@]} -ne 0 ]; then
+          echo "::warning::Scripts missing executable permission: ${non_executable[*]}"
+        else
+          echo "✅ Script permissions are correct"
+        fi
+
+  validate-ssl-setup:
+    name: Validate SSL Configuration
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Check SSL script functionality
+      run: |
+        echo "Testing SSL setup script..."
+        
+        # Create test directory
+        mkdir -p test_certs
+        
+        # Test certificate generation (dry run)
+        if [ -f "scripts/deploy/setup_ssl_certificates.sh" ]; then
+          CERT_DIR=test_certs USE_SELF_SIGNED=true bash scripts/deploy/setup_ssl_certificates.sh
+          
+          # Check if certificates were created
+          if [ -f "test_certs/server.crt" ] && [ -f "test_certs/server.key" ]; then
+            echo "✅ SSL certificate generation works"
+            
+            # Validate certificate
+            openssl x509 -in test_certs/server.crt -text -noout > /dev/null || exit 1
+            echo "✅ Generated certificate is valid"
+          else
+            echo "::error::SSL certificate generation failed"
+            exit 1
+          fi
+        fi
+        
+        # Clean up
+        rm -rf test_certs
+    
+    - name: Check nginx SSL configuration
+      run: |
+        echo "Checking nginx SSL configuration..."
+        
+        nginx_configs=(
+          "nginx/nginx.prod.conf"
+          "nginx/nginx.dev.conf"
+        )
+        
+        for config in "${nginx_configs[@]}"; do
+          if [ -f "$config" ]; then
+            echo "Checking: $config"
+            
+            # Check for SSL directives
+            if ! grep -q "ssl_certificate" "$config"; then
+              echo "::warning::No SSL certificate directive found in $config"
+            fi
+            
+            if ! grep -q "ssl_certificate_key" "$config"; then
+              echo "::warning::No SSL certificate key directive found in $config"
+            fi
+          fi
+        done
+        
+        echo "✅ Nginx SSL configuration check complete"
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: 'CRITICAL,HIGH'
+    
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
+    - name: Check Dockerfile best practices
+      run: |
+        echo "Checking Dockerfile best practices..."
+        
+        # Install hadolint
+        wget -O hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
+        chmod +x hadolint
+        
+        # Check all Dockerfiles
+        find . -name "Dockerfile*" -type f | while read dockerfile; do
+          echo "Checking: $dockerfile"
+          ./hadolint "$dockerfile" || true
+        done
+
+  documentation-check:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Check required documentation
+      run: |
+        echo "Checking required documentation..."
+        
+        required_docs=(
+          "README.md"
+          "docs/DEPLOYMENT_CHECKLIST.md"
+          "docs/TROUBLESHOOTING.md"
+          ".env.template"
+        )
+        
+        missing_docs=()
+        for doc in "${required_docs[@]}"; do
+          if [ ! -f "$doc" ]; then
+            missing_docs+=("$doc")
+          fi
+        done
+        
+        if [ ${#missing_docs[@]} -ne 0 ]; then
+          echo "::error::Missing required documentation: ${missing_docs[*]}"
+          exit 1
+        fi
+        
+        echo "✅ All required documentation present"
+    
+    - name: Check for broken links
+      run: |
+        echo "Checking for broken internal links..."
+        
+        # Simple check for internal markdown links
+        find . -name "*.md" -type f | while read file; do
+          # Extract internal links
+          links=$(grep -oE '\[([^]]+)\]\(([^)]+)\)' "$file" | grep -oE '\]\([^)]+\)' | sed 's/](\(.*\))/\1/' | grep -v '^http' | grep -v '^#')
+          
+          for link in $links; do
+            # Remove anchor if present
+            base_link=$(echo "$link" | cut -d'#' -f1)
+            
+            # Check if file exists (relative to the file's directory)
+            dir=$(dirname "$file")
+            if [ ! -z "$base_link" ] && [ ! -f "$dir/$base_link" ] && [ ! -f "$base_link" ]; then
+              echo "::warning::Broken link in $file: $link"
+            fi
+          done
+        done
+        
+        echo "✅ Link check complete"

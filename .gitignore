@@ -64,6 +64,11 @@ htmlcov/
 tmp/
 temp/
 
+# Act (GitHub Actions local testing)
+.secrets
+/tmp/act-artifacts/
+act/
+
 # Development artifacts
 development_notes/
 scratch/

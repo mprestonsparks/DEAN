@@ -71,3 +71,10 @@ repos:
         language: system
         pass_filenames: false
         files: docker-compose.*\.yml$
+
+      - id: test-github-actions
+        name: Test GitHub Actions with Act (dry-run)
+        entry: bash -c 'if command -v act &>/dev/null; then act --dryrun; else echo "Act not installed - skipping"; fi'
+        language: system
+        pass_filenames: false
+        files: \.github/workflows/.*\.yml$

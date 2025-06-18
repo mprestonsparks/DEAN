@@ -1,0 +1,63 @@
+{
+  "push": {
+    "ref": "refs/heads/main",
+    "before": "0000000000000000000000000000000000000000",
+    "after": "1234567890abcdef1234567890abcdef12345678",
+    "repository": {
+      "name": "DEAN",
+      "full_name": "user/DEAN",
+      "owner": {
+        "name": "user",
+        "email": "user@example.com"
+      }
+    },
+    "pusher": {
+      "name": "user",
+      "email": "user@example.com"
+    },
+    "sender": {
+      "login": "user",
+      "type": "User"
+    },
+    "created": false,
+    "deleted": false,
+    "forced": false,
+    "base_ref": null,
+    "compare": "https://github.com/user/DEAN/compare/before...after",
+    "commits": [
+      {
+        "id": "1234567890abcdef1234567890abcdef12345678",
+        "message": "Test commit",
+        "timestamp": "2024-01-01T00:00:00Z",
+        "author": {
+          "name": "user",
+          "email": "user@example.com"
+        }
+      }
+    ],
+    "head_commit": {
+      "id": "1234567890abcdef1234567890abcdef12345678",
+      "message": "Test commit",
+      "timestamp": "2024-01-01T00:00:00Z",
+      "author": {
+        "name": "user",
+        "email": "user@example.com"
+      }
+    }
+  },
+  "pull_request": {
+    "number": 1,
+    "title": "Test PR",
+    "user": {
+      "login": "user"
+    },
+    "head": {
+      "ref": "feature-branch",
+      "sha": "1234567890abcdef1234567890abcdef12345678"
+    },
+    "base": {
+      "ref": "main",
+      "sha": "0000000000000000000000000000000000000000"
+    }
+  }
+}

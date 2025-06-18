@@ -109,18 +109,35 @@ This directory contains CI/CD workflows for the DEAN orchestration system.
 Install [act](https://github.com/nektos/act) to test workflows locally:
 
 ```bash
+# Install Act
+# macOS: brew install act
+# Linux: curl https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
+# Windows: choco install act-cli
+
+# Use our testing script
+./scripts/test_github_actions_locally.sh all
+
+# Or use Act directly:
 # List all workflows
 act -l
 
 # Run CI pipeline
 act push
 
-# Run with secrets
-act -s GITHUB_TOKEN=$GITHUB_TOKEN
+# Run configuration validation
+act -W .github/workflows/configuration-validation.yml
+
+# Dry run to see what would execute
+act --dryrun
+
+# Run with secrets (create .secrets file first)
+act --secret-file .secrets
 
 # Run specific job
-act -j test
+act -j validate-config
 ```
+
+See [GitHub Actions Local Testing Guide](../../docs/development/GITHUB_ACTIONS_LOCAL_TESTING.md) for detailed instructions.
 
 ## Workflow Configuration
 

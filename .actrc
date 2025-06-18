@@ -1,0 +1,29 @@
+# Act configuration file
+# This configures Act to use Docker images that closely match GitHub Actions
+
+# Use larger images that include more tools (similar to GitHub-hosted runners)
+# These images are maintained by the Act community
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+-P ubuntu-22.04=catthehacker/ubuntu:act-22.04
+-P ubuntu-20.04=catthehacker/ubuntu:act-20.04
+
+# Use buildx for multi-platform builds
+--container-architecture linux/amd64
+
+# Set default event
+--eventpath .github/workflows/event.json
+
+# Enable verbose output for debugging
+# --verbose
+
+# Reuse containers between runs for faster execution
+--reuse
+
+# Set artifact server path for local artifact handling
+--artifact-server-path /tmp/act-artifacts
+
+# Use local Docker daemon
+--local
+
+# Set default timeout (in minutes)
+--timeout 30
