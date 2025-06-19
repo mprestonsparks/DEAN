@@ -5,6 +5,7 @@ Coordinates evolution trials across services without direct repository dependenc
 """
 
 import asyncio
+import os
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from pathlib import Path
@@ -232,15 +233,28 @@ class EvolutionTrialCoordinator:
         self.logger.info("Registering repository", path=repo_path)
         
         try:
-            # Note: Repository registration endpoint not defined in service interfaces
-            # This requires stakeholder input on repository management API
+            # Import repository manager
+            from ..repository_manager import RepositoryManager
             
-            self.logger.warning(
-                "Repository registration not implemented - requires API specification"
+            # Create repository manager instance
+            repo_manager = RepositoryManager(
+                base_path=os.getenv("REPO_BASE_PATH", "/repos"),
+                db_pool=None,  # Would be passed from main app context
+                redis_client=None  # Would be passed from main app context
             )
             
-            # Return mock repository ID for now
-            return f"repo_{Path(repo_path).name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            # Register repository
+            repo_id = await repo_manager.register_repository(
+                repo_path=repo_path,
+                metadata={
+                    "trial_id": self.trial_id,
+                    "registered_by": "evolution_trial",
+                    "purpose": "agent_evolution"
+                }
+            )
+            
+            self.logger.info(f"Repository registered successfully: {repo_id}")
+            return repo_id
             
         except Exception as e:
             self.logger.error("Repository registration failed", error=str(e))

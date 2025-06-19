@@ -394,10 +394,64 @@ class SystemDeployer:
         """
         self.logger.info("Initializing test repositories")
         
-        # Note: Test repository initialization logic requires stakeholder input
-        # on repository structure and content requirements
-        
-        self.logger.warning(
-            "Test repository initialization not implemented - requires stakeholder input"
-        )
-        return True
+        try:
+            # Use asyncio to run async repository initialization
+            import asyncio
+            from ..repository_manager import RepositoryManager
+            
+            async def init_repos():
+                # Create repository manager
+                repo_manager = RepositoryManager(
+                    base_path=self.config.get("repository_base_path", "/repos"),
+                    db_pool=None,  # Would be passed from main app context
+                    redis_client=None  # Would be passed from main app context
+                )
+                
+                # Define test repositories to create
+                test_repos = [
+                    {
+                        "name": "test-python-package",
+                        "template": "python_package",
+                        "language": "python"
+                    },
+                    {
+                        "name": "test-web-app",
+                        "template": "web_app",
+                        "language": "javascript"
+                    },
+                    {
+                        "name": "test-simple-project",
+                        "template": "default",
+                        "language": "python"
+                    }
+                ]
+                
+                # Initialize each test repository
+                created_repos = []
+                for repo_config in test_repos:
+                    try:
+                        repo_info = await repo_manager.initialize_test_repository(
+                            name=repo_config["name"],
+                            template=repo_config["template"],
+                            language=repo_config["language"]
+                        )
+                        created_repos.append(repo_info)
+                        self.logger.info(f"Created test repository: {repo_info['name']} at {repo_info['path']}")
+                    except Exception as e:
+                        self.logger.error(f"Failed to create test repository {repo_config['name']}: {e}")
+                
+                return created_repos
+            
+            # Run async initialization
+            created_repos = asyncio.run(init_repos())
+            
+            if created_repos:
+                self.logger.info(f"Successfully initialized {len(created_repos)} test repositories")
+                return True
+            else:
+                self.logger.error("Failed to initialize any test repositories")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Test repository initialization failed: {e}")
+            return False

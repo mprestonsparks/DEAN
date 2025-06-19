@@ -290,25 +290,72 @@ class InfrastructureClient:
     def __init__(
         self,
         evolution_api_url: str = "http://localhost:8090",
+        database_url: Optional[str] = None,
+        redis_url: Optional[str] = None,
+        service_name: Optional[str] = None,
+        pushgateway_url: Optional[str] = None,
         **kwargs
     ):
         """Initialize infrastructure client.
         
         Args:
             evolution_api_url: Evolution API URL
+            database_url: PostgreSQL connection URL
+            redis_url: Redis connection URL
+            service_name: Service name for monitoring
+            pushgateway_url: Prometheus pushgateway URL
             **kwargs: Additional configuration
         """
         self.evolution = EvolutionAPIClient(evolution_api_url, **kwargs)
         
-        # Future: Add database, cache, and monitoring clients
-        # self.database = DatabaseClient(...)
-        # self.cache = RedisClient(...)
-        # self.monitoring = MonitoringClient(...)
+        # Initialize database client if URL provided
+        self.database = None
+        if database_url:
+            from .database_client import DatabaseClient
+            self.database = DatabaseClient(database_url)
+        
+        # Initialize cache client if URL provided
+        self.cache = None
+        if redis_url:
+            from .redis_cache_client import RedisCacheClient
+            self.cache = RedisCacheClient(
+                redis_url=redis_url,
+                password=kwargs.get("redis_password")
+            )
+        
+        # Initialize monitoring client if service name provided
+        self.monitoring = None
+        if service_name:
+            from .monitoring_client import MonitoringClient
+            self.monitoring = MonitoringClient(
+                service_name=service_name,
+                pushgateway_url=pushgateway_url,
+                custom_labels=kwargs.get("custom_labels", {})
+            )
+    
+    async def connect_all(self):
+        """Connect all configured clients."""
+        if self.database:
+            await self.database.connect()
+        
+        if self.cache:
+            await self.cache.connect()
+        
+        if self.monitoring:
+            await self.monitoring.start()
     
     async def close(self):
         """Close all client connections."""
         await self.evolution.close()
-        # Future: Close other clients
+        
+        if self.database:
+            await self.database.disconnect()
+        
+        if self.cache:
+            await self.cache.disconnect()
+        
+        if self.monitoring:
+            await self.monitoring.stop()
     
     async def __aenter__(self):
         """Async context manager entry."""

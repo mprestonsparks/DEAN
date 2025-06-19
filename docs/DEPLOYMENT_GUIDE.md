@@ -37,6 +37,7 @@ This guide provides step-by-step instructions for deploying the DEAN orchestrati
 - **8080**: Airflow Web UI
 - **8081**: IndexAgent API
 - **8083**: Evolution API
+- **8091**: DEAN API (includes Economic Governor)
 - **5432**: PostgreSQL (internal)
 - **6379**: Redis (internal)
 
@@ -97,6 +98,10 @@ SESSION_COOKIE_SAMESITE=strict
 SERVICE_API_KEY=$(openssl rand -base64 32)
 EVOLUTION_SERVICE_KEY=$(openssl rand -base64 32)
 INDEXAGENT_SERVICE_KEY=$(openssl rand -base64 32)
+
+# Economic Governor Settings
+ECONOMIC_TOTAL_BUDGET=1000000
+DEAN_API_URL=http://localhost:8091
 EOF
 
 # 3. Secure the secrets file
@@ -359,6 +364,91 @@ sudo cat > /etc/letsencrypt/renewal-hooks/deploy/dean-reload.sh << 'EOF'
 docker exec dean-orchestrator supervisorctl restart all
 EOF
 sudo chmod +x /etc/letsencrypt/renewal-hooks/deploy/dean-reload.sh
+```
+
+## Economic Governor Configuration
+
+The Economic Governor manages token budgets and resource allocation across the DEAN system. It is now exposed via REST API endpoints through the DEAN API service.
+
+### API Endpoints
+
+The Economic Governor provides the following endpoints:
+
+- **GET /api/v1/economy/metrics** - System-wide economic metrics
+- **GET /api/v1/economy/agent/{agent_id}** - Individual agent budget status
+- **POST /api/v1/economy/use-tokens** - Record token usage
+- **POST /api/v1/economy/allocate** - Allocate tokens to agents
+- **POST /api/v1/economy/rebalance** - Trigger budget rebalancing
+
+### Configuration
+
+```bash
+# Environment variables for Economic Governor
+ECONOMIC_TOTAL_BUDGET=1000000      # Total system token budget
+ECONOMIC_BASE_ALLOCATION=1000      # Base tokens per new agent
+ECONOMIC_PERFORMANCE_MULTIPLIER=1.5 # Performance bonus multiplier
+ECONOMIC_DECAY_RATE=0.1            # Decay rate for inactive agents
+ECONOMIC_RESERVE_RATIO=0.2         # Reserve budget ratio
+
+# Database tables (auto-created)
+# - token_allocations: Tracks token allocations to agents
+# - token_usage: Records token consumption by actions
+```
+
+### Integration with Airflow DAGs
+
+The DEAN evolution DAGs use the Economic Governor API client instead of direct imports:
+
+```python
+from dean.utils.economic_client import EconomicGovernorClient
+
+# Check global budget
+client = EconomicGovernorClient()
+metrics = client.get_system_metrics()
+
+# Record token usage
+client.use_tokens(
+    agent_id="agent_001",
+    tokens=100,
+    action_type="optimization",
+    task_success=0.8,
+    quality_score=0.9
+)
+```
+
+### Monitoring Economic Health
+
+```bash
+# Check economic metrics
+curl -X GET https://localhost:8091/api/v1/economy/metrics
+
+# View top performers
+curl -X GET https://localhost:8091/api/v1/economy/metrics | jq '.top_performers'
+
+# Check specific agent budget
+curl -X GET https://localhost:8091/api/v1/economy/agent/agent_001
+```
+
+### Troubleshooting Economic Issues
+
+1. **Insufficient Budget Errors**
+```bash
+# Check available budget
+curl https://localhost:8091/api/v1/economy/metrics | jq '.global_budget.available'
+
+# Trigger rebalancing
+curl -X POST https://localhost:8091/api/v1/economy/rebalance
+```
+
+2. **Token Allocation Failures**
+```bash
+# Check agent existence in economic system
+curl https://localhost:8091/api/v1/economy/agent/{agent_id}
+
+# Manually allocate tokens if needed
+curl -X POST https://localhost:8091/api/v1/economy/allocate \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id": "agent_001", "performance": 0.8, "generation": 1}'
 ```
 
 ## Post-Deployment

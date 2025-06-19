@@ -8,12 +8,11 @@ import sys
 import os
 from typing import Optional
 import uvicorn
-from structlog import get_logger
+import logging
 
-# Import server application
-from ..orchestration.unified_server import app
-
-logger = get_logger(__name__)
+# Configure basic logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def main(args: Optional[list[str]] = None) -> int:
@@ -35,16 +34,15 @@ def main(args: Optional[list[str]] = None) -> int:
     
     try:
         logger.info(
-            "Starting DEAN orchestration server",
-            host=host,
-            port=port,
-            reload=reload,
-            log_level=log_level
+            f"Starting DEAN orchestration server on {host}:{port}"
         )
+        
+        # Import app here to avoid import issues
+        from orchestration.unified_server_simple import app
         
         # Run the server
         uvicorn.run(
-            "dean_orchestration.orchestration.unified_server:app",
+            app,
             host=host,
             port=port,
             reload=reload,
@@ -59,7 +57,7 @@ def main(args: Optional[list[str]] = None) -> int:
         logger.info("Server shutdown requested")
         return 130  # Standard exit code for SIGINT
     except Exception as e:
-        logger.error("Failed to start server", error=str(e), exc_info=True)
+        logger.error(f"Failed to start server: {str(e)}", exc_info=True)
         return 1
 
 
