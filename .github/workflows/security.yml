@@ -42,7 +42,7 @@ jobs:
           pip-audit --desc --format json > pip-audit-report.json || true
           
       - name: Upload dependency scan results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: dependency-scan-results
           path: |
@@ -82,7 +82,7 @@ jobs:
             p/owasp-top-ten
             
       - name: Upload code scan results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: code-scan-results
           path: bandit-report.json
@@ -187,7 +187,7 @@ jobs:
           "
           
       - name: Upload license report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: license-report
           path: licenses.json
@@ -215,7 +215,7 @@ jobs:
           echo "- License Scan: ${{ needs.license-scan.result }}" >> security-report.md
           
       - name: Upload final report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: security-report
           path: security-report.md
