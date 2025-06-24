@@ -2,7 +2,31 @@
 
 **Version**: 1.0.0  
 **Status**: Production Ready  
-**Last Updated**: 2024-01-20
+**Last Updated**: 2025-06-24
+
+![CI](https://github.com/mprestonsparks/DEAN/workflows/CI/badge.svg)
+![CD](https://github.com/mprestonsparks/DEAN/workflows/CD/badge.svg)
+![Security](https://github.com/mprestonsparks/DEAN/workflows/Security/badge.svg)
+
+## System Status
+
+### Monitoring Status
+🟢 **DEAN Monitoring System Active** (as of June 2025)
+- Repository scanning capability configured
+- Dependency checking system ready
+- System health monitoring active
+- Automated deployment pipeline operational
+
+### Deployment
+DEAN uses automated deployment from Mac development to Windows deployment PC (10.7.0.2).
+
+**Key Features:**
+- 🚀 One-command deployment: `./deploy_to_windows.sh`
+- 📊 Real-time monitoring: `./monitor_deployment.sh`
+- 🔄 Automatic backups before deployment
+- 🛡️ Rollback capability
+
+See [DEPLOYMENT_WORKFLOW.md](docs/DEPLOYMENT_WORKFLOW.md) for detailed instructions.
 
 ## 🚀 Quick Start Deployment
 
@@ -156,6 +180,31 @@ docker exec dean-postgres pg_dump -U dean_prod dean_production > backup.sql
 docker exec -i dean-postgres psql -U dean_prod dean_production < backup.sql
 ```
 
+## Quick Commands
+
+### Deploy from Mac
+```bash
+cd ~/Documents/gitRepos/DEAN
+./deploy_to_windows.sh
+
+# Monitor deployment
+./monitor_deployment.sh
+
+# Check DEAN status via Claude Code
+@remote_exec { "script": "docker ps --filter name=dean" }
+
+# View orchestrator logs
+@remote_exec { "script": "docker logs dean-orchestrator --tail 50" }
+```
+
+### Dependency Management
+This repository uses Dependabot for automated dependency updates. PRs are reviewed weekly.
+
+To review Dependabot PRs:
+```bash
+./review_dependabot_prs.sh
+```
+
 ## 🤝 Support & Contributing
 
 ### Getting Help
@@ -169,6 +218,10 @@ docker exec -i dean-postgres psql -U dean_prod dean_production < backup.sql
 2. Create a feature branch
 3. Run validation: `./scripts/validate_deployment.ps1`
 4. Submit a pull request
+
+### Security
+Security scanning is performed automatically on all PRs and deployments.
+See [SECURITY.md](SECURITY.md) for security policies.
 
 ### CI/CD Pipeline
 All pull requests automatically run:

@@ -1,0 +1,125 @@
+groups:
+  - name: dean_system
+    interval: 30s
+    rules:
+      # Service health alerts
+      - alert: OrchestratorDown
+        expr: up{job="dean-orchestrator"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: orchestrator
+        annotations:
+          summary: "DEAN Orchestrator is down"
+          description: "DEAN Orchestrator has been down for more than 2 minutes."
+
+      - alert: PostgreSQLDown
+        expr: up{job="postgres"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: database
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL database has been down for more than 2 minutes."
+
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: cache
+        annotations:
+          summary: "Redis is down"
+          description: "Redis cache has been down for more than 2 minutes."
+
+      # Performance alerts
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage has been above 80% for 10 minutes on {{ $labels.instance }}"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage has been above 85% for 10 minutes on {{ $labels.instance }}"
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space"
+          description: "Disk space is below 15% on {{ $labels.instance }}"
+
+      # Database alerts
+      - alert: PostgresHighConnections
+        expr: pg_stat_database_numbackends{datname="dean_production"} > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "High number of PostgreSQL connections"
+          description: "PostgreSQL has more than 80 active connections for 5 minutes"
+
+      - alert: PostgresSlowQueries
+        expr: rate(pg_stat_database_blks_hit{datname="dean_production"}[5m]) < 0.9
+        for: 10m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "PostgreSQL cache hit ratio low"
+          description: "PostgreSQL cache hit ratio is below 90% for 10 minutes"
+
+      # Redis alerts
+      - alert: RedisHighMemory
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: cache
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Redis is using more than 80% of max memory"
+
+      - alert: RedisRejectedConnections
+        expr: rate(redis_rejected_connections_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: cache
+        annotations:
+          summary: "Redis rejecting connections"
+          description: "Redis has rejected connections in the last 5 minutes"
+
+      # Application alerts
+      - alert: HighErrorRate
+        expr: rate(dean_orchestrator_errors_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: orchestrator
+        annotations:
+          summary: "High error rate in DEAN Orchestrator"
+          description: "Error rate is above 5% for the last 5 minutes"
+
+      - alert: SlowResponseTime
+        expr: histogram_quantile(0.95, rate(dean_orchestrator_request_duration_seconds_bucket[5m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+          service: orchestrator
+        annotations:
+          summary: "Slow response times"
+          description: "95th percentile response time is above 1 second for 10 minutes"

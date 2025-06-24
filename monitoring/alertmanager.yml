@@ -1,0 +1,76 @@
+global:
+  resolve_timeout: 5m
+  smtp_from: 'dean-alerts@example.com'
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_auth_username: 'dean-alerts@example.com'
+  smtp_auth_password: 'CHANGE_ME_SMTP_PASSWORD'
+
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default'
+  
+  routes:
+    # Critical alerts go to pager duty
+    - match:
+        severity: critical
+      receiver: 'critical'
+      continue: true
+    
+    # Database alerts go to DBA team
+    - match:
+        service: database
+      receiver: 'database-team'
+      continue: true
+    
+    # All other warnings
+    - match:
+        severity: warning
+      receiver: 'warnings'
+
+receivers:
+  - name: 'default'
+    email_configs:
+      - to: 'devops@example.com'
+        headers:
+          Subject: 'DEAN Alert: {{ .GroupLabels.alertname }}'
+
+  - name: 'critical'
+    email_configs:
+      - to: 'oncall@example.com'
+        headers:
+          Subject: 'CRITICAL DEAN Alert: {{ .GroupLabels.alertname }}'
+    webhook_configs:
+      - url: 'http://pagerduty-webhook.example.com/webhook'
+        send_resolved: true
+
+  - name: 'database-team'
+    email_configs:
+      - to: 'dba-team@example.com'
+        headers:
+          Subject: 'DEAN Database Alert: {{ .GroupLabels.alertname }}'
+
+  - name: 'warnings'
+    email_configs:
+      - to: 'devops-warnings@example.com'
+        headers:
+          Subject: 'DEAN Warning: {{ .GroupLabels.alertname }}'
+
+inhibit_rules:
+  # Don't send warnings when system is down
+  - source_match:
+      severity: 'critical'
+      alertname: 'OrchestratorDown'
+    target_match:
+      severity: 'warning'
+    equal: ['service']
+
+  # Don't send DB warnings when DB is down
+  - source_match:
+      severity: 'critical'
+      alertname: 'PostgreSQLDown'
+    target_match:
+      service: 'database'
+    equal: ['service']
