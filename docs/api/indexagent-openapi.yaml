@@ -1,0 +1,755 @@
+openapi: 3.0.3
+info:
+  title: IndexAgent API
+  description: |
+    Core agent logic and evolution algorithms for the DEAN system.
+    This API provides access to agent management, evolution operations, and pattern detection.
+  version: 1.0.0
+  contact:
+    name: IndexAgent Development Team
+    email: indexagent@example.com
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8081/api/v1
+    description: Development server
+  - url: https://indexagent.example.com/api/v1
+    description: Production server
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Check the health status of IndexAgent service
+      tags:
+        - System
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /agents:
+    get:
+      summary: List agents
+      description: Get all agents managed by IndexAgent
+      tags:
+        - Agent Management
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, evolving, archived]
+        - name: generation
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: List of agents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentList'
+
+    post:
+      summary: Create agent
+      description: Create a new agent with specified genome
+      tags:
+        - Agent Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentRequest'
+      responses:
+        '201':
+          description: Agent created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+
+  /agents/{agent_id}:
+    get:
+      summary: Get agent details
+      description: Retrieve detailed information about a specific agent
+      tags:
+        - Agent Management
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentDetails'
+        '404':
+          description: Agent not found
+
+    delete:
+      summary: Archive agent
+      description: Archive an agent (soft delete)
+      tags:
+        - Agent Management
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Agent archived successfully
+        '404':
+          description: Agent not found
+
+  /agents/{agent_id}/evolve:
+    post:
+      summary: Evolve agent
+      description: Trigger evolution for a specific agent
+      tags:
+        - Evolution
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvolveRequest'
+      responses:
+        '200':
+          description: Evolution completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvolveResponse'
+
+  /agents/{agent_id}/genome:
+    get:
+      summary: Get agent genome
+      description: Retrieve the genetic information of an agent
+      tags:
+        - Agent Management
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent genome
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Genome'
+
+  /evolution/genetic-algorithm:
+    post:
+      summary: Run genetic algorithm
+      description: Execute genetic algorithm operations on a population
+      tags:
+        - Evolution
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GeneticAlgorithmRequest'
+      responses:
+        '200':
+          description: Genetic algorithm results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneticAlgorithmResponse'
+
+  /evolution/cellular-automata:
+    post:
+      summary: Apply cellular automata
+      description: Apply cellular automata rules to agent evolution
+      tags:
+        - Evolution
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CellularAutomataRequest'
+      responses:
+        '200':
+          description: Cellular automata results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CellularAutomataResponse'
+
+  /patterns/detect:
+    post:
+      summary: Detect patterns
+      description: Analyze agent behavior to detect patterns
+      tags:
+        - Patterns
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatternDetectionRequest'
+      responses:
+        '200':
+          description: Detected patterns
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatternDetectionResponse'
+
+  /patterns:
+    get:
+      summary: List patterns
+      description: Get all discovered patterns
+      tags:
+        - Patterns
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [behavioral, optimization, emergent, structural, temporal]
+        - name: min_effectiveness
+          in: query
+          schema:
+            type: number
+      responses:
+        '200':
+          description: List of patterns
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatternList'
+
+  /diversity/population:
+    post:
+      summary: Calculate population diversity
+      description: Calculate genetic diversity metrics for a population
+      tags:
+        - Diversity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiversityRequest'
+      responses:
+        '200':
+          description: Diversity metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiversityResponse'
+
+  /diversity/inject-mutation:
+    post:
+      summary: Inject mutations
+      description: Inject mutations to increase population diversity
+      tags:
+        - Diversity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MutationInjectionRequest'
+      responses:
+        '200':
+          description: Mutation injection results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MutationInjectionResponse'
+
+  /economy/token-usage:
+    get:
+      summary: Get token usage
+      description: Retrieve token usage statistics
+      tags:
+        - Economy
+      parameters:
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+        - name: timeframe
+          in: query
+          schema:
+            type: string
+            enum: [hour, day, week, month]
+      responses:
+        '200':
+          description: Token usage statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenUsage'
+
+  /economy/allocate:
+    post:
+      summary: Allocate tokens
+      description: Allocate tokens to agents
+      tags:
+        - Economy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenAllocationRequest'
+      responses:
+        '200':
+          description: Token allocation results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenAllocationResponse'
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+        version:
+          type: string
+        database:
+          type: string
+        redis:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    Agent:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+        generation:
+          type: integer
+        fitness_score:
+          type: number
+        token_budget:
+          type: integer
+        tokens_consumed:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    AgentDetails:
+      allOf:
+        - $ref: '#/components/schemas/Agent'
+        - type: object
+          properties:
+            genome:
+              $ref: '#/components/schemas/Genome'
+            patterns_discovered:
+              type: array
+              items:
+                type: string
+            parent_id:
+              type: string
+              nullable: true
+            children_ids:
+              type: array
+              items:
+                type: string
+            evolution_history:
+              type: array
+              items:
+                $ref: '#/components/schemas/EvolutionEvent'
+
+    AgentList:
+      type: object
+      properties:
+        agents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Agent'
+        total_agents:
+          type: integer
+        active_agents:
+          type: integer
+        total_patterns:
+          type: integer
+
+    CreateAgentRequest:
+      type: object
+      required:
+        - genome_template
+        - token_budget
+      properties:
+        genome_template:
+          type: string
+        token_budget:
+          type: integer
+        initial_traits:
+          type: object
+        parent_id:
+          type: string
+          nullable: true
+
+    Genome:
+      type: object
+      properties:
+        id:
+          type: string
+        traits:
+          type: object
+          additionalProperties:
+            type: number
+        strategies:
+          type: array
+          items:
+            type: string
+        mutation_rate:
+          type: number
+        crossover_points:
+          type: array
+          items:
+            type: integer
+
+    EvolveRequest:
+      type: object
+      required:
+        - generations
+        - token_budget
+      properties:
+        generations:
+          type: integer
+        token_budget:
+          type: integer
+        cellular_automata_rules:
+          type: array
+          items:
+            type: integer
+        mutation_rate:
+          type: number
+        crossover_rate:
+          type: number
+
+    EvolveResponse:
+      type: object
+      properties:
+        evolution_id:
+          type: string
+        generations_completed:
+          type: integer
+        tokens_consumed:
+          type: integer
+        fitness_improvement:
+          type: number
+        patterns_discovered:
+          type: integer
+        children_created:
+          type: array
+          items:
+            type: string
+
+    GeneticAlgorithmRequest:
+      type: object
+      required:
+        - population_ids
+        - operation
+      properties:
+        population_ids:
+          type: array
+          items:
+            type: string
+        operation:
+          type: string
+          enum: [crossover, mutation, selection]
+        parameters:
+          type: object
+          properties:
+            crossover_type:
+              type: string
+              enum: [single_point, two_point, uniform, arithmetic]
+            mutation_type:
+              type: string
+              enum: [gaussian, uniform, bit_flip, strategy_shuffle]
+            selection_method:
+              type: string
+              enum: [tournament, roulette, rank, elitist]
+
+    GeneticAlgorithmResponse:
+      type: object
+      properties:
+        operation:
+          type: string
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              agent_id:
+                type: string
+              new_genome:
+                $ref: '#/components/schemas/Genome'
+              fitness_delta:
+                type: number
+
+    CellularAutomataRequest:
+      type: object
+      required:
+        - agent_id
+        - rule
+      properties:
+        agent_id:
+          type: string
+        rule:
+          type: integer
+          enum: [110, 30, 90, 184, 1]
+        iterations:
+          type: integer
+          default: 10
+
+    CellularAutomataResponse:
+      type: object
+      properties:
+        rule:
+          type: integer
+        iterations:
+          type: integer
+        patterns_generated:
+          type: array
+          items:
+            type: object
+            properties:
+              iteration:
+                type: integer
+              pattern:
+                type: string
+              complexity:
+                type: number
+
+    PatternDetectionRequest:
+      type: object
+      required:
+        - agent_ids
+      properties:
+        agent_ids:
+          type: array
+          items:
+            type: string
+        detection_depth:
+          type: integer
+          default: 5
+        pattern_types:
+          type: array
+          items:
+            type: string
+
+    PatternDetectionResponse:
+      type: object
+      properties:
+        patterns_found:
+          type: integer
+        patterns:
+          type: array
+          items:
+            $ref: '#/components/schemas/Pattern'
+
+    Pattern:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        effectiveness:
+          type: number
+        discovered_by:
+          type: string
+        generation:
+          type: integer
+        frequency:
+          type: integer
+
+    PatternList:
+      type: object
+      properties:
+        patterns:
+          type: array
+          items:
+            $ref: '#/components/schemas/Pattern'
+        total:
+          type: integer
+
+    DiversityRequest:
+      type: object
+      required:
+        - population_ids
+      properties:
+        population_ids:
+          type: array
+          items:
+            type: string
+
+    DiversityResponse:
+      type: object
+      properties:
+        genetic_variance:
+          type: number
+        trait_diversity:
+          type: object
+          additionalProperties:
+            type: number
+        strategy_diversity:
+          type: number
+        recommendation:
+          type: string
+          enum: [healthy, warning, critical]
+
+    MutationInjectionRequest:
+      type: object
+      required:
+        - population_ids
+        - mutation_strength
+      properties:
+        population_ids:
+          type: array
+          items:
+            type: string
+        mutation_strength:
+          type: number
+          minimum: 0
+          maximum: 1
+
+    MutationInjectionResponse:
+      type: object
+      properties:
+        agents_mutated:
+          type: integer
+        diversity_before:
+          type: number
+        diversity_after:
+          type: number
+        mutations_applied:
+          type: array
+          items:
+            type: object
+            properties:
+              agent_id:
+                type: string
+              mutation_type:
+                type: string
+
+    TokenUsage:
+      type: object
+      properties:
+        total_allocated:
+          type: integer
+        total_consumed:
+          type: integer
+        efficiency_ratio:
+          type: number
+        by_agent:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              allocated:
+                type: integer
+              consumed:
+                type: integer
+              patterns_per_token:
+                type: number
+
+    TokenAllocationRequest:
+      type: object
+      required:
+        - allocations
+      properties:
+        allocations:
+          type: array
+          items:
+            type: object
+            properties:
+              agent_id:
+                type: string
+              tokens:
+                type: integer
+
+    TokenAllocationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        allocations:
+          type: array
+          items:
+            type: object
+            properties:
+              agent_id:
+                type: string
+              allocated:
+                type: integer
+              previous:
+                type: integer
+
+    EvolutionEvent:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        event_type:
+          type: string
+        generation:
+          type: integer
+        details:
+          type: object
+
+tags:
+  - name: System
+    description: System health and status
+  - name: Agent Management
+    description: Agent lifecycle operations
+  - name: Evolution
+    description: Evolution algorithms and operations
+  - name: Patterns
+    description: Pattern detection and analysis
+  - name: Diversity
+    description: Genetic diversity management
+  - name: Economy
+    description: Token economy management

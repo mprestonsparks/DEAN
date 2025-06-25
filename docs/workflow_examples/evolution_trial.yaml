@@ -1,0 +1,257 @@
+# Evolution Trial Workflow
+# This workflow orchestrates a complete DEAN agent evolution trial
+
+name: Evolution Trial
+version: "1.0.0"
+description: Standard DEAN agent evolution trial workflow
+category: evolution
+
+# Required context variables
+required_context_keys:
+  - population_size
+  - generations
+  - token_budget
+  - diversity_threshold
+
+# Default values for context
+default_context:
+  population_size: 10
+  generations: 50
+  token_budget: 100000
+  diversity_threshold: 0.3
+
+# Workflow definition
+workflow:
+  name: Evolution Trial
+  timeout_seconds: 3600
+  max_parallel_steps: 5
+  
+  steps:
+    # Step 1: Validate token budget
+    - id: validate_budget
+      name: Validate Token Budget
+      type: service_call
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/token/validate
+        method: POST
+        body:
+          budget: "{{token_budget}}"
+          reserved_percentage: 0.1
+        timeout_seconds: 10
+      retry_policy:
+        max_attempts: 2
+        initial_delay_seconds: 1
+        
+    # Step 2: Create agent population
+    - id: create_population
+      name: Create Agent Population
+      type: service_call
+      depends_on:
+        - validate_budget
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/agents/population/initialize
+        method: POST
+        body:
+          size: "{{population_size}}"
+          diversity_threshold: "{{diversity_threshold}}"
+          token_budget_per_agent: "{{step_validate_budget_result.budget_per_agent}}"
+        timeout_seconds: 60
+      on_failure: cleanup_population
+      
+    # Step 3: Start evolution process
+    - id: start_evolution
+      name: Start Evolution Process
+      type: service_call
+      depends_on:
+        - create_population
+      service_call:
+        service_name: EvolutionAPI
+        endpoint: /api/v1/evolution/start
+        method: POST
+        body:
+          population_ids: "{{step_create_population_result.agent_ids}}"
+          generations: "{{generations}}"
+          token_budget: "{{token_budget}}"
+          mutation_rate: 0.1
+          crossover_rate: 0.7
+        timeout_seconds: 300
+      retry_policy:
+        max_attempts: 1
+        
+    # Step 4: Trigger Airflow DAG
+    - id: trigger_airflow
+      name: Trigger Airflow Monitoring
+      type: service_call
+      depends_on:
+        - start_evolution
+      service_call:
+        service_name: Airflow
+        endpoint: /api/v1/dags/agent_evolution_trial/dagRuns
+        method: POST
+        body:
+          conf:
+            trial_id: "{{workflow_instance_id}}"
+            evolution_job_id: "{{step_start_evolution_result.job_id}}"
+            population_id: "{{step_create_population_result.population_id}}"
+        timeout_seconds: 30
+        
+    # Step 5: Monitor progress (parallel with pattern collection)
+    - id: parallel_monitoring
+      name: Parallel Monitoring Tasks
+      type: parallel
+      depends_on:
+        - trigger_airflow
+      parallel_steps:
+        - monitor_evolution
+        - monitor_diversity
+        - monitor_efficiency
+        
+    # Step 5a: Monitor evolution progress
+    - id: monitor_evolution
+      name: Monitor Evolution Progress
+      type: wait
+      wait_seconds: 30
+      
+    # Step 5b: Monitor diversity metrics
+    - id: monitor_diversity
+      name: Check Diversity Metrics
+      type: service_call
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/metrics/diversity
+        method: GET
+        params:
+          population_id: "{{step_create_population_result.population_id}}"
+          
+    # Step 5c: Monitor efficiency metrics
+    - id: monitor_efficiency
+      name: Check Efficiency Metrics
+      type: service_call
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/metrics/efficiency
+        method: GET
+        params:
+          population_id: "{{step_create_population_result.population_id}}"
+          
+    # Step 6: Check if diversity intervention needed
+    - id: check_diversity_threshold
+      name: Check Diversity Threshold
+      type: conditional
+      depends_on:
+        - monitor_diversity
+      conditional:
+        condition: "step_monitor_diversity_result.variance < 0.3"
+        if_true: inject_mutations
+        if_false: continue_evolution
+        
+    # Step 7a: Inject mutations if needed
+    - id: inject_mutations
+      name: Inject Diversity Mutations
+      type: service_call
+      depends_on:
+        - check_diversity_threshold
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/evolution/inject-mutations
+        method: POST
+        body:
+          population_id: "{{step_create_population_result.population_id}}"
+          mutation_rate: 0.3
+          target_variance: 0.4
+      skip_on_failure: true
+      
+    # Step 7b: Continue normal evolution
+    - id: continue_evolution
+      name: Continue Evolution
+      type: wait
+      depends_on:
+        - check_diversity_threshold
+      wait_seconds: 1
+      
+    # Step 8: Collect discovered patterns
+    - id: collect_patterns
+      name: Collect Discovered Patterns
+      type: service_call
+      depends_on:
+        - inject_mutations
+        - continue_evolution
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/patterns/discovered
+        method: GET
+        params:
+          since: "{{step_start_evolution_result.started_at}}"
+          min_effectiveness: 0.5
+        timeout_seconds: 30
+        
+    # Step 9: Store patterns in registry
+    - id: store_patterns
+      name: Store Patterns in Registry
+      type: service_call
+      depends_on:
+        - collect_patterns
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/patterns/store
+        method: POST
+        body:
+          patterns: "{{step_collect_patterns_result}}"
+          metadata:
+            trial_id: "{{workflow_instance_id}}"
+            generation_count: "{{generations}}"
+            
+    # Step 10: Update token allocations
+    - id: update_allocations
+      name: Update Token Allocations
+      type: service_call
+      depends_on:
+        - store_patterns
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/token/allocations/update
+        method: POST
+        body:
+          population_id: "{{step_create_population_result.population_id}}"
+          efficiency_metrics: "{{step_monitor_efficiency_result}}"
+          discovered_patterns: "{{step_collect_patterns_result}}"
+          
+    # Step 11: Generate trial report
+    - id: generate_report
+      name: Generate Evolution Trial Report
+      type: transform
+      depends_on:
+        - update_allocations
+      transform:
+        input_path: "$"
+        output_key: trial_report
+        expression: |
+          {
+            "trial_id": workflow_instance_id,
+            "population_size": population_size,
+            "generations": generations,
+            "final_diversity": step_monitor_diversity_result.variance,
+            "patterns_discovered": len(step_collect_patterns_result),
+            "token_efficiency": step_monitor_efficiency_result.average_efficiency
+          }
+          
+    # Compensation steps for rollback
+    - id: cleanup_population
+      name: Cleanup Failed Population
+      type: service_call
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/agents/population/cleanup
+        method: DELETE
+        body:
+          population_id: "{{step_create_population_result.population_id}}"
+          force: true
+      skip_on_failure: true
+      
+# Workflow metadata
+tags:
+  team: dean
+  environment: production
+  impact: high

@@ -1,0 +1,67 @@
+# Production Dockerfile for IndexAgent Service
+FROM python:3.11-slim as builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /build
+
+# Copy requirements first for better caching
+COPY requirements/indexagent.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --user -r indexagent.txt
+
+# Production stage
+FROM python:3.11-slim
+
+# Install runtime dependencies (including GPU support)
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1000 indexagent
+
+# Set working directory
+WORKDIR /app
+
+# Copy Python dependencies from builder
+COPY --from=builder /root/.local /home/indexagent/.local
+
+# Copy application code (assuming IndexAgent code structure)
+COPY --chown=indexagent:indexagent ./IndexAgent /app/IndexAgent
+COPY --chown=indexagent:indexagent ./shared /app/shared
+
+# Create necessary directories
+RUN mkdir -p /app/data /app/logs /app/worktrees && \
+    chown -R indexagent:indexagent /app/data /app/logs /app/worktrees
+
+# Switch to non-root user
+USER indexagent
+
+# Add Python packages to PATH
+ENV PATH=/home/indexagent/.local/bin:$PATH
+ENV PYTHONPATH=/app:$PYTHONPATH
+
+# Environment variables
+ENV INDEXAGENT_HOST=0.0.0.0
+ENV INDEXAGENT_PORT=8081
+ENV LOG_LEVEL=INFO
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8081/health || exit 1
+
+# Expose port
+EXPOSE 8081
+
+# Run the application
+CMD ["python", "-m", "IndexAgent.main"]

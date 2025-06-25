@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "remote_exec": {
+      "type": "stdio",
+      "command": "/Users/preston/dev/mcp-tools/remote_exec/remote_exec_launcher.sh",
+      "args": [],
+      "env": {}
+    }
+  }
+}

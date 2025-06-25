@@ -1,0 +1,339 @@
+# Pattern Propagation Workflow
+# This workflow detects new patterns and propagates them across the agent population
+
+name: Pattern Propagation
+version: "1.0.0"
+description: Detect, validate, and propagate successful patterns across DEAN agents
+category: pattern-management
+
+# Required context variables
+required_context_keys:
+  - source_agent_id
+  - min_effectiveness_score
+  - propagation_strategy
+
+# Default values for context
+default_context:
+  min_effectiveness_score: 0.7
+  propagation_strategy: "gradual"  # gradual, immediate, or selective
+  test_population_percentage: 0.2
+
+# Workflow definition
+workflow:
+  name: Pattern Propagation
+  timeout_seconds: 1800
+  max_parallel_steps: 8
+  
+  steps:
+    # Step 1: Detect new patterns from source agent
+    - id: detect_patterns
+      name: Detect New Patterns
+      type: service_call
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/agents/{{source_agent_id}}/patterns
+        method: GET
+        params:
+          include_metrics: true
+          min_occurrences: 3
+        timeout_seconds: 30
+      retry_policy:
+        max_attempts: 2
+        
+    # Step 2: Filter patterns by effectiveness
+    - id: filter_patterns
+      name: Filter High-Quality Patterns
+      type: transform
+      depends_on:
+        - detect_patterns
+      transform:
+        input_path: "$.step_detect_patterns_result"
+        output_key: "qualified_patterns"
+        expression: |
+          [p for p in patterns if p.effectiveness_score >= min_effectiveness_score]
+          
+    # Step 3: Check if any patterns qualify
+    - id: check_patterns_exist
+      name: Check Pattern Qualification
+      type: conditional
+      depends_on:
+        - filter_patterns
+      conditional:
+        condition: "len(qualified_patterns) > 0"
+        if_true: validate_patterns
+        if_false: log_no_patterns
+        
+    # Step 4a: Validate patterns
+    - id: validate_patterns
+      name: Validate Pattern Quality
+      type: service_call
+      depends_on:
+        - check_patterns_exist
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/patterns/validate
+        method: POST
+        body:
+          patterns: "{{qualified_patterns}}"
+          validation_criteria:
+            - check_originality
+            - verify_effectiveness
+            - assess_generalizability
+        timeout_seconds: 60
+      on_failure: handle_validation_failure
+      
+    # Step 4b: Log when no patterns found
+    - id: log_no_patterns
+      name: Log No Qualifying Patterns
+      type: service_call
+      depends_on:
+        - check_patterns_exist
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/logs/workflow
+        method: POST
+        body:
+          level: "info"
+          message: "No patterns met effectiveness threshold"
+          workflow_id: "{{workflow_instance_id}}"
+          
+    # Step 5: Store validated patterns
+    - id: store_patterns
+      name: Store in Pattern Registry
+      type: service_call
+      depends_on:
+        - validate_patterns
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/patterns/registry/store
+        method: POST
+        body:
+          patterns: "{{step_validate_patterns_result.valid_patterns}}"
+          metadata:
+            source_agent: "{{source_agent_id}}"
+            validation_timestamp: "{{step_validate_patterns_result.timestamp}}"
+            workflow_id: "{{workflow_instance_id}}"
+        timeout_seconds: 30
+        
+    # Step 6: Determine propagation strategy
+    - id: select_strategy
+      name: Select Propagation Strategy
+      type: conditional
+      depends_on:
+        - store_patterns
+      conditional:
+        condition: "propagation_strategy == 'immediate'"
+        if_true: immediate_propagation
+        if_false: gradual_propagation
+        
+    # Step 7a: Immediate propagation to all agents
+    - id: immediate_propagation
+      name: Immediate Full Propagation
+      type: service_call
+      depends_on:
+        - select_strategy
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/patterns/propagate/all
+        method: POST
+        body:
+          pattern_ids: "{{step_store_patterns_result.stored_pattern_ids}}"
+          force_update: true
+        timeout_seconds: 300
+      on_failure: rollback_propagation
+      
+    # Step 7b: Gradual propagation approach
+    - id: gradual_propagation
+      name: Gradual Propagation Setup
+      type: parallel
+      depends_on:
+        - select_strategy
+      parallel_steps:
+        - select_test_population
+        - prepare_monitoring
+        
+    # Step 8a: Select test population
+    - id: select_test_population
+      name: Select Test Population
+      type: service_call
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/agents/select
+        method: POST
+        body:
+          selection_criteria:
+            percentage: "{{test_population_percentage}}"
+            strategy: "random_stratified"
+            exclude_agent: "{{source_agent_id}}"
+        timeout_seconds: 30
+        
+    # Step 8b: Prepare monitoring
+    - id: prepare_monitoring
+      name: Setup Pattern Monitoring
+      type: service_call
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/monitoring/patterns/setup
+        method: POST
+        body:
+          pattern_ids: "{{step_store_patterns_result.stored_pattern_ids}}"
+          metrics_to_track:
+            - adoption_rate
+            - effectiveness_delta
+            - error_rate
+        timeout_seconds: 30
+        
+    # Step 9: Apply patterns to test population
+    - id: apply_test_patterns
+      name: Apply Patterns to Test Population
+      type: service_call
+      depends_on:
+        - select_test_population
+        - prepare_monitoring
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/patterns/propagate/selective
+        method: POST
+        body:
+          pattern_ids: "{{step_store_patterns_result.stored_pattern_ids}}"
+          target_agents: "{{step_select_test_population_result.agent_ids}}"
+          monitoring_enabled: true
+        timeout_seconds: 120
+        
+    # Step 10: Wait for initial results
+    - id: wait_for_results
+      name: Wait for Initial Results
+      type: wait
+      depends_on:
+        - apply_test_patterns
+      wait_seconds: 300  # 5 minutes
+      
+    # Step 11: Collect adoption metrics
+    - id: collect_metrics
+      name: Collect Adoption Metrics
+      type: service_call
+      depends_on:
+        - wait_for_results
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/monitoring/patterns/metrics
+        method: GET
+        params:
+          pattern_ids: "{{step_store_patterns_result.stored_pattern_ids}}"
+          include_detailed: true
+        timeout_seconds: 30
+        
+    # Step 12: Evaluate propagation success
+    - id: evaluate_success
+      name: Evaluate Propagation Success
+      type: conditional
+      depends_on:
+        - collect_metrics
+      conditional:
+        condition: "step_collect_metrics_result.average_effectiveness_delta > 0"
+        if_true: expand_propagation
+        if_false: quarantine_patterns
+        
+    # Step 13a: Expand to full population
+    - id: expand_propagation
+      name: Expand to Full Population
+      type: service_call
+      depends_on:
+        - evaluate_success
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/patterns/propagate/expand
+        method: POST
+        body:
+          pattern_ids: "{{step_store_patterns_result.stored_pattern_ids}}"
+          exclude_agents: "{{step_select_test_population_result.agent_ids}}"
+          propagation_rate: 0.5  # 50% per cycle
+        timeout_seconds: 300
+        
+    # Step 13b: Quarantine unsuccessful patterns
+    - id: quarantine_patterns
+      name: Quarantine Patterns
+      type: service_call
+      depends_on:
+        - evaluate_success
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/patterns/quarantine
+        method: POST
+        body:
+          pattern_ids: "{{step_store_patterns_result.stored_pattern_ids}}"
+          reason: "Negative effectiveness impact"
+          metrics: "{{step_collect_metrics_result}}"
+        timeout_seconds: 30
+        
+    # Step 14: Update pattern registry with results
+    - id: update_registry
+      name: Update Pattern Registry
+      type: service_call
+      depends_on:
+        - expand_propagation
+        - quarantine_patterns
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/patterns/registry/update
+        method: PATCH
+        body:
+          pattern_ids: "{{step_store_patterns_result.stored_pattern_ids}}"
+          adoption_metrics: "{{step_collect_metrics_result}}"
+          final_status: "{{step_evaluate_success_result.branch}}"
+        timeout_seconds: 30
+        
+    # Step 15: Generate propagation report
+    - id: generate_report
+      name: Generate Propagation Report
+      type: transform
+      depends_on:
+        - update_registry
+      transform:
+        input_path: "$"
+        output_key: "propagation_report"
+        expression: |
+          {
+            "workflow_id": workflow_instance_id,
+            "source_agent": source_agent_id,
+            "patterns_detected": len(step_detect_patterns_result),
+            "patterns_qualified": len(qualified_patterns),
+            "patterns_propagated": len(step_store_patterns_result.stored_pattern_ids),
+            "test_population_size": len(step_select_test_population_result.agent_ids),
+            "effectiveness_delta": step_collect_metrics_result.average_effectiveness_delta,
+            "final_status": step_evaluate_success_result.branch
+          }
+          
+    # Compensation steps
+    - id: handle_validation_failure
+      name: Handle Validation Failure
+      type: service_call
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/patterns/validation/report
+        method: POST
+        body:
+          failed_patterns: "{{qualified_patterns}}"
+          validation_errors: "{{step_validate_patterns_result.errors}}"
+          source_agent: "{{source_agent_id}}"
+      skip_on_failure: true
+      
+    - id: rollback_propagation
+      name: Rollback Pattern Propagation
+      type: service_call
+      service_call:
+        service_name: IndexAgent
+        endpoint: /api/v1/patterns/propagate/rollback
+        method: POST
+        body:
+          pattern_ids: "{{step_store_patterns_result.stored_pattern_ids}}"
+          affected_agents: "{{step_immediate_propagation_result.updated_agents}}"
+          restore_previous: true
+      skip_on_failure: true
+      
+# Workflow metadata
+tags:
+  team: dean
+  environment: production
+  impact: medium
+  category: pattern-management

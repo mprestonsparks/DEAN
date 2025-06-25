@@ -6,6 +6,21 @@ This file provides repository-specific guidance for the DEAN orchestration syste
 
 DEAN (Distributed Evolutionary Agent Network) serves as the primary orchestration layer that coordinates multiple Claude Code instances as autonomous agents. This repository implements the central control plane that manages agent lifecycles, orchestrates workflows, and provides unified monitoring across the distributed system.
 
+## CRITICAL: This is Part of a Distributed System
+
+<distributed_system_warning>
+⚠️ **WARNING: The DEAN system spans FOUR repositories** ⚠️
+
+This repository contains ONLY the orchestration layer. Other components are located in:
+- **IndexAgent**: Core agent logic, evolution algorithms (Port 8081)
+- **infra**: Docker configs, database schemas, deployment scripts
+- **airflow-hub**: DAGs, operators, workflow orchestration (Port 8080)
+
+**Specification Documents Location**: DEAN/specifications/ (read-only)
+
+Always check all repositories before implementing features!
+</distributed_system_warning>
+
 ## Available MCP Tools
 
 ### remote_exec
@@ -45,6 +60,12 @@ Every implementation MUST:
 - **Authentication & Authorization**: Unified access control across the system
 - **Health Monitoring**: Real-time status tracking via WebSocket connections
 - **Resource Management**: Token allocation and budget enforcement for agents
+
+### What This Repository Does NOT Contain
+- **Agent Evolution Logic**: Located in IndexAgent/indexagent/agents/evolution/
+- **DAG Definitions**: Located in airflow-hub/dags/dean/
+- **Docker Configurations**: Located in infra/docker-compose.dean.yml
+- **Database Schemas**: Located in infra/database/init_agent_evolution.sql
 
 ### Service Integration Requirements
 
@@ -112,6 +133,14 @@ src/
 └── orchestration/       # Core workflow coordination
     ├── agent_manager.py # Agent lifecycle management
     └── token_economy.py # Resource allocation logic
+
+specifications/           # System specification documents (read-only)
+├── 1-software-design-document.md
+├── 2-software-requirements-specification.md
+├── 3-architectural-design-document.md
+├── 4-test-plan.md
+├── 5-user-documentation.md
+└── 6-maintenance-documentation.md
 ```
 
 ## Testing Requirements

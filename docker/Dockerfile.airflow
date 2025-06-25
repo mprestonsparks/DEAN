@@ -1,0 +1,50 @@
+# Production Dockerfile for Airflow Hub Service
+FROM apache/airflow:2.8.1-python3.11 as base
+
+# Switch to root for system packages
+USER root
+
+# Install additional system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create directories with proper permissions
+RUN mkdir -p /opt/airflow/dags/dean /opt/airflow/plugins/dean && \
+    chown -R airflow:root /opt/airflow/dags /opt/airflow/plugins
+
+# Switch back to airflow user
+USER airflow
+
+# Copy requirements
+COPY --chown=airflow:root requirements/airflow.txt /tmp/
+
+# Install additional Python packages
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Copy DAGs and plugins
+COPY --chown=airflow:root ./airflow-hub/dags/dean /opt/airflow/dags/dean
+COPY --chown=airflow:root ./airflow-hub/plugins/dean /opt/airflow/plugins/dean
+COPY --chown=airflow:root ./shared /opt/airflow/shared
+
+# Set Python path
+ENV PYTHONPATH=/opt/airflow:/opt/airflow/shared:$PYTHONPATH
+
+# Environment variables
+ENV AIRFLOW__CORE__EXECUTOR=LocalExecutor
+ENV AIRFLOW__CORE__LOAD_EXAMPLES=False
+ENV AIRFLOW__API__AUTH_BACKEND=airflow.api.auth.backend.basic_auth
+ENV AIRFLOW__WEBSERVER__EXPOSE_CONFIG=True
+ENV AIRFLOW__WEBSERVER__RBAC=True
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/api/v1/health || exit 1
+
+# Expose port
+EXPOSE 8080
+
+# Use the base image's entrypoint
+ENTRYPOINT ["/usr/bin/dumb-init", "--", "/entrypoint"]
+CMD ["webserver"]

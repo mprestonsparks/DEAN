@@ -98,3 +98,6 @@ test_auth_simple.py
 test_unified_server.py
 verify_auth_files.py
 verify_deployment_ready.sh
+
+# Protect specification documents from modifications
+specifications/

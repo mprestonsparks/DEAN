@@ -1,0 +1,566 @@
+openapi: 3.0.3
+info:
+  title: DEAN Orchestrator API
+  description: |
+    Central orchestration service for the Distributed Evolutionary Agent Network (DEAN).
+    This API provides unified access to agent management, evolution orchestration, and system monitoring.
+  version: 1.0.0
+  contact:
+    name: DEAN Development Team
+    email: dean-dev@example.com
+  license:
+    name: MIT
+    
+servers:
+  - url: http://localhost:8082/api/v1
+    description: Development server
+  - url: https://dean.example.com/api/v1
+    description: Production server
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Returns the health status of the DEAN orchestrator and its dependencies
+      security: []
+      tags:
+        - System
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /agents:
+    get:
+      summary: List all agents
+      description: Retrieve a paginated list of all agents in the system
+      tags:
+        - Agents
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, archived, evolving]
+      responses:
+        '200':
+          description: List of agents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentList'
+
+  /agents/spawn:
+    post:
+      summary: Spawn new agents
+      description: Create a new population of agents with specified genome template
+      tags:
+        - Agents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpawnRequest'
+      responses:
+        '201':
+          description: Agents spawned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpawnResponse'
+
+  /agents/{agent_id}:
+    get:
+      summary: Get agent details
+      description: Retrieve detailed information about a specific agent
+      tags:
+        - Agents
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+        '404':
+          description: Agent not found
+
+  /evolution/start:
+    post:
+      summary: Start evolution cycle
+      description: Initiate a new evolution cycle for a population of agents
+      tags:
+        - Evolution
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvolutionRequest'
+      responses:
+        '202':
+          description: Evolution cycle started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvolutionResponse'
+
+  /evolution/{cycle_id}/status:
+    get:
+      summary: Get evolution cycle status
+      description: Check the status of an ongoing evolution cycle
+      tags:
+        - Evolution
+      parameters:
+        - name: cycle_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Evolution cycle status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvolutionStatus'
+
+  /patterns:
+    get:
+      summary: List discovered patterns
+      description: Retrieve all patterns discovered by agents
+      tags:
+        - Patterns
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [behavioral, optimization, emergent, structural]
+        - name: min_effectiveness
+          in: query
+          schema:
+            type: number
+            format: float
+            minimum: 0
+            maximum: 1
+      responses:
+        '200':
+          description: List of patterns
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatternList'
+
+  /patterns/{pattern_id}/propagate:
+    post:
+      summary: Propagate pattern
+      description: Propagate a discovered pattern to selected agents
+      tags:
+        - Patterns
+      parameters:
+        - name: pattern_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropagateRequest'
+      responses:
+        '200':
+          description: Pattern propagated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropagateResponse'
+
+  /metrics/tokens:
+    get:
+      summary: Get token usage metrics
+      description: Retrieve token usage statistics and budget information
+      tags:
+        - Metrics
+      parameters:
+        - name: timeframe
+          in: query
+          schema:
+            type: string
+            enum: [hour, day, week, month]
+            default: day
+      responses:
+        '200':
+          description: Token usage metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenMetrics'
+
+  /workflows:
+    get:
+      summary: List active workflows
+      description: Get all active evolution workflows from Airflow
+      tags:
+        - Workflows
+      responses:
+        '200':
+          description: List of workflows
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowList'
+
+  /services/status:
+    get:
+      summary: Get service status
+      description: Check the status of all dependent services
+      tags:
+        - System
+      responses:
+        '200':
+          description: Service status summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceStatus'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        version:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        services:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+              latency_ms:
+                type: number
+
+    Agent:
+      type: object
+      properties:
+        id:
+          type: string
+        genome:
+          type: object
+        status:
+          type: string
+          enum: [active, evolving, archived]
+        generation:
+          type: integer
+        fitness_score:
+          type: number
+        token_budget:
+          type: integer
+        tokens_consumed:
+          type: integer
+        patterns_discovered:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        parent_id:
+          type: string
+          nullable: true
+
+    AgentList:
+      type: object
+      properties:
+        agents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Agent'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    SpawnRequest:
+      type: object
+      required:
+        - genome_template
+        - population_size
+        - token_budget
+      properties:
+        genome_template:
+          type: string
+        population_size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        token_budget:
+          type: integer
+          minimum: 100
+        initial_strategies:
+          type: array
+          items:
+            type: string
+
+    SpawnResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        agents_created:
+          type: integer
+        agent_ids:
+          type: array
+          items:
+            type: string
+        initial_diversity:
+          type: number
+
+    EvolutionRequest:
+      type: object
+      required:
+        - population_ids
+        - generations
+        - token_budget
+      properties:
+        population_ids:
+          type: array
+          items:
+            type: string
+        generations:
+          type: integer
+          minimum: 1
+        token_budget:
+          type: integer
+        cellular_automata_rules:
+          type: array
+          items:
+            type: integer
+            enum: [110, 30, 90, 184]
+        diversity_threshold:
+          type: number
+          default: 0.3
+
+    EvolutionResponse:
+      type: object
+      properties:
+        cycle_id:
+          type: string
+        status:
+          type: string
+        dag_run_id:
+          type: string
+        estimated_duration_minutes:
+          type: integer
+
+    EvolutionStatus:
+      type: object
+      properties:
+        cycle_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        current_generation:
+          type: integer
+        total_generations:
+          type: integer
+        patterns_discovered:
+          type: integer
+        tokens_consumed:
+          type: integer
+        population_diversity:
+          type: number
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+          nullable: true
+
+    Pattern:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [behavioral, optimization, emergent, structural]
+        name:
+          type: string
+        description:
+          type: string
+        effectiveness:
+          type: number
+        discovered_by:
+          type: string
+        generation:
+          type: integer
+        usage_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    PatternList:
+      type: object
+      properties:
+        patterns:
+          type: array
+          items:
+            $ref: '#/components/schemas/Pattern'
+        total:
+          type: integer
+
+    PropagateRequest:
+      type: object
+      required:
+        - target_agents
+      properties:
+        target_agents:
+          type: array
+          items:
+            type: string
+        propagation_strength:
+          type: number
+          default: 1.0
+
+    PropagateResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        agents_updated:
+          type: integer
+        propagation_id:
+          type: string
+
+    TokenMetrics:
+      type: object
+      properties:
+        total_budget:
+          type: integer
+        total_consumed:
+          type: integer
+        efficiency_ratio:
+          type: number
+        tokens_per_pattern:
+          type: number
+        tokens_per_agent:
+          type: number
+        budget_remaining:
+          type: integer
+        consumption_by_agent:
+          type: object
+          additionalProperties:
+            type: integer
+
+    WorkflowList:
+      type: object
+      properties:
+        workflows:
+          type: array
+          items:
+            type: object
+            properties:
+              dag_id:
+                type: string
+              run_id:
+                type: string
+              state:
+                type: string
+              start_date:
+                type: string
+                format: date-time
+              conf:
+                type: object
+
+    ServiceStatus:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        services:
+          type: object
+          properties:
+            indexagent:
+              $ref: '#/components/schemas/ServiceInfo'
+            evolution_api:
+              $ref: '#/components/schemas/ServiceInfo'
+            airflow:
+              $ref: '#/components/schemas/ServiceInfo'
+            database:
+              $ref: '#/components/schemas/ServiceInfo'
+            redis:
+              $ref: '#/components/schemas/ServiceInfo'
+
+    ServiceInfo:
+      type: object
+      properties:
+        url:
+          type: string
+        status:
+          type: string
+          enum: [up, down, degraded]
+        version:
+          type: string
+        latency_ms:
+          type: number
+        last_check:
+          type: string
+          format: date-time
+
+tags:
+  - name: System
+    description: System health and status endpoints
+  - name: Agents
+    description: Agent management operations
+  - name: Evolution
+    description: Evolution cycle control
+  - name: Patterns
+    description: Pattern discovery and management
+  - name: Metrics
+    description: System metrics and analytics
+  - name: Workflows
+    description: Workflow orchestration

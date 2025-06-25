@@ -1,0 +1,97 @@
+{
+  "server": {
+    "port": 8090,
+    "host": "0.0.0.0",
+    "trustProxy": true
+  },
+  "database": {
+    "type": "postgres",
+    "connectionRetries": 10,
+    "connectionRetryInterval": 5000,
+    "pool": {
+      "min": 2,
+      "max": 10,
+      "idleTimeoutMillis": 30000
+    }
+  },
+  "redis": {
+    "enableTLS": false,
+    "retryStrategy": {
+      "retries": 10,
+      "factor": 2,
+      "minTimeout": 1000,
+      "maxTimeout": 30000
+    }
+  },
+  "security": {
+    "enforceHTTPS": false,
+    "hstsMaxAge": 31536000,
+    "hstsIncludeSubDomains": true,
+    "hstsPreload": true,
+    "contentSecurityPolicy": {
+      "defaultSrc": ["'self'"],
+      "scriptSrc": ["'self'", "'unsafe-inline'"],
+      "styleSrc": ["'self'", "'unsafe-inline'"],
+      "imgSrc": ["'self'", "data:", "https:"],
+      "connectSrc": ["'self'"],
+      "fontSrc": ["'self'"],
+      "objectSrc": ["'none'"],
+      "mediaSrc": ["'self'"],
+      "frameSrc": ["'none'"]
+    }
+  },
+  "auth": {
+    "jwtAccessLifetime": "15m",
+    "jwtRefreshLifetime": "7d",
+    "sessionTimeout": 3600000,
+    "maxLoginAttempts": 5,
+    "lockoutDuration": 900000
+  },
+  "secrets": {
+    "cacheEnabled": true,
+    "cacheTTL": 300,
+    "maxVersions": 100,
+    "auditLogEnabled": true,
+    "encryptionAlgorithm": "aes-256-gcm"
+  },
+  "pki": {
+    "enabled": true,
+    "rootCAName": "DEAN Root CA",
+    "rootCAValidityYears": 10,
+    "intermediateCaValidityYears": 5,
+    "certificateValidityDays": 365,
+    "autoRenewalDays": 30,
+    "keyAlgorithm": "RSA",
+    "keySize": 4096
+  },
+  "airGapped": {
+    "enabled": true,
+    "disableExternalCalls": true,
+    "disableUpdateChecks": true,
+    "disableTelemetry": true
+  },
+  "logging": {
+    "level": "info",
+    "format": "json",
+    "outputPath": "/app/data/logs",
+    "maxFiles": 30,
+    "maxFileSize": "100m"
+  },
+  "audit": {
+    "enabled": true,
+    "retentionDays": 90,
+    "includeRequestBody": false,
+    "includeResponseBody": false,
+    "sensitiveFieldMasking": true
+  },
+  "features": {
+    "multiOrganization": true,
+    "rbac": true,
+    "sso": false,
+    "ldap": false,
+    "secretScanning": true,
+    "secretRotation": true,
+    "dynamicSecrets": true,
+    "webhooks": true
+  }
+}

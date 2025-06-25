@@ -1,0 +1,116 @@
+# Infisical Agent Configuration
+# This agent provides runtime secret injection for DEAN services
+
+api:
+  url: http://infisical:8090/api
+  timeout: 30s
+  retries: 3
+  retryDelay: 5s
+
+cache:
+  enabled: true
+  ttl: 300s  # 5 minutes
+  maxSize: 100MB
+  directory: /app/cache
+
+secrets:
+  # Default project and environment
+  projectId: ${INFISICAL_DEAN_PROJECT_ID}
+  environment: production
+  
+  # Secret paths to monitor
+  paths:
+    - path: /dean/common
+      recursive: true
+    - path: /dean/orchestration
+      recursive: true
+    - path: /dean/indexagent
+      recursive: true
+    - path: /dean/evolution
+      recursive: true
+    - path: /dean/airflow
+      recursive: true
+    - path: /dean/monitoring
+      recursive: true
+
+auth:
+  method: token  # or 'service-token' for production
+  token: ${INFISICAL_AGENT_TOKEN}
+  
+  # For service token auth (preferred for production)
+  # method: service-token
+  # serviceToken: ${INFISICAL_SERVICE_TOKEN}
+
+injection:
+  # How to inject secrets into services
+  method: env  # 'env' or 'file'
+  
+  # For file-based injection
+  # method: file
+  # directory: /run/secrets
+  # format: json  # 'json', 'yaml', or 'dotenv'
+
+monitoring:
+  enabled: true
+  port: 9091
+  metrics:
+    - secret_fetch_total
+    - secret_fetch_duration
+    - cache_hit_ratio
+    - auth_failures
+
+logging:
+  level: info
+  format: json
+  output: stdout
+  
+  # Sensitive data handling
+  maskSecrets: true
+  includeTimestamp: true
+  includeContext: true
+
+health:
+  enabled: true
+  interval: 30s
+  timeout: 10s
+  
+  # Health check endpoints
+  checks:
+    - name: infisical_api
+      url: http://infisical:8090/api/status
+    - name: cache_directory
+      path: /app/cache
+    - name: secret_access
+      testPath: /dean/common/health_check
+
+# Service discovery for automatic secret injection
+services:
+  - name: dean-orchestration
+    container: dean-orchestration
+    secretPath: /dean/orchestration
+    envPrefix: DEAN_
+    
+  - name: indexagent
+    container: indexagent
+    secretPath: /dean/indexagent
+    envPrefix: INDEXAGENT_
+    
+  - name: evolution-api
+    container: evolution-api
+    secretPath: /dean/evolution
+    envPrefix: EVOLUTION_
+    
+  - name: airflow-webserver
+    container: airflow-webserver
+    secretPath: /dean/airflow
+    envPrefix: AIRFLOW_
+    
+  - name: prometheus
+    container: prometheus
+    secretPath: /dean/monitoring/prometheus
+    envPrefix: PROMETHEUS_
+    
+  - name: grafana
+    container: grafana
+    secretPath: /dean/monitoring/grafana
+    envPrefix: GF_

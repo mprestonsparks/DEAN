@@ -1,0 +1,803 @@
+openapi: 3.0.3
+info:
+  title: Evolution API (Economic Governor)
+  description: |
+    Economic governance and evolution control API for the DEAN system.
+    This API manages token economy, budget allocation, and evolution constraints.
+  version: 1.0.0
+  contact:
+    name: Evolution API Team
+    email: evolution@example.com
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8090/api/v1
+    description: Development server (port 8090)
+  - url: http://localhost:8091/api/v1
+    description: Alternative port (8091)
+  - url: https://evolution.example.com/api/v1
+    description: Production server
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Check the health status of Evolution API service
+      tags:
+        - System
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /economy/budget:
+    get:
+      summary: Get global budget
+      description: Retrieve the global token budget and allocation status
+      tags:
+        - Economy
+      responses:
+        '200':
+          description: Budget information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GlobalBudget'
+
+    put:
+      summary: Update global budget
+      description: Update the global token budget limit
+      tags:
+        - Economy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBudgetRequest'
+      responses:
+        '200':
+          description: Budget updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GlobalBudget'
+
+  /economy/allocate:
+    post:
+      summary: Allocate tokens
+      description: Allocate tokens from global budget to agents
+      tags:
+        - Economy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AllocationRequest'
+      responses:
+        '200':
+          description: Tokens allocated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllocationResponse'
+        '400':
+          description: Insufficient budget
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /economy/usage:
+    get:
+      summary: Get token usage statistics
+      description: Retrieve detailed token usage statistics
+      tags:
+        - Economy
+      parameters:
+        - name: timeframe
+          in: query
+          schema:
+            type: string
+            enum: [hour, day, week, month, all]
+            default: day
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Usage statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageStatistics'
+
+  /economy/efficiency:
+    get:
+      summary: Get efficiency metrics
+      description: Calculate token efficiency metrics across the system
+      tags:
+        - Economy
+      responses:
+        '200':
+          description: Efficiency metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EfficiencyMetrics'
+
+  /evolution/constraints:
+    get:
+      summary: Get evolution constraints
+      description: Retrieve current evolution constraints and limits
+      tags:
+        - Evolution
+      responses:
+        '200':
+          description: Evolution constraints
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvolutionConstraints'
+
+    put:
+      summary: Update evolution constraints
+      description: Update evolution constraints and limits
+      tags:
+        - Evolution
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateConstraintsRequest'
+      responses:
+        '200':
+          description: Constraints updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvolutionConstraints'
+
+  /evolution/validate:
+    post:
+      summary: Validate evolution request
+      description: Validate an evolution request against current constraints
+      tags:
+        - Evolution
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidationRequest'
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResponse'
+
+  /evolution/cycle:
+    post:
+      summary: Start evolution cycle
+      description: Initiate a new evolution cycle with economic constraints
+      tags:
+        - Evolution
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvolutionCycleRequest'
+      responses:
+        '202':
+          description: Evolution cycle started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvolutionCycleResponse'
+
+  /evolution/cycle/{cycle_id}:
+    get:
+      summary: Get evolution cycle status
+      description: Retrieve the status of an evolution cycle
+      tags:
+        - Evolution
+      parameters:
+        - name: cycle_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cycle status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CycleStatus'
+
+  /patterns:
+    get:
+      summary: List patterns
+      description: Get all patterns managed by the Evolution API
+      tags:
+        - Patterns
+      parameters:
+        - name: effectiveness_min
+          in: query
+          schema:
+            type: number
+            minimum: 0
+            maximum: 1
+      responses:
+        '200':
+          description: Pattern list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatternList'
+
+    post:
+      summary: Register pattern
+      description: Register a new discovered pattern
+      tags:
+        - Patterns
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterPatternRequest'
+      responses:
+        '201':
+          description: Pattern registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pattern'
+
+  /patterns/{pattern_id}/effectiveness:
+    put:
+      summary: Update pattern effectiveness
+      description: Update the effectiveness score of a pattern
+      tags:
+        - Patterns
+      parameters:
+        - name: pattern_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEffectivenessRequest'
+      responses:
+        '200':
+          description: Effectiveness updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pattern'
+
+  /governance/rules:
+    get:
+      summary: Get governance rules
+      description: Retrieve current economic governance rules
+      tags:
+        - Governance
+      responses:
+        '200':
+          description: Governance rules
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GovernanceRules'
+
+  /governance/violations:
+    get:
+      summary: Get rule violations
+      description: Retrieve recent governance rule violations
+      tags:
+        - Governance
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Violations list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ViolationsList'
+
+  /governance/enforce:
+    post:
+      summary: Enforce governance action
+      description: Enforce a governance action (e.g., terminate inefficient agent)
+      tags:
+        - Governance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnforcementRequest'
+      responses:
+        '200':
+          description: Action enforced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnforcementResponse'
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+        version:
+          type: string
+        database:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    GlobalBudget:
+      type: object
+      properties:
+        total_budget:
+          type: integer
+        allocated:
+          type: integer
+        consumed:
+          type: integer
+        available:
+          type: integer
+        allocation_percentage:
+          type: number
+        last_reset:
+          type: string
+          format: date-time
+
+    UpdateBudgetRequest:
+      type: object
+      required:
+        - new_budget
+      properties:
+        new_budget:
+          type: integer
+          minimum: 0
+        reset_allocations:
+          type: boolean
+          default: false
+
+    AllocationRequest:
+      type: object
+      required:
+        - agent_id
+        - requested_tokens
+      properties:
+        agent_id:
+          type: string
+        requested_tokens:
+          type: integer
+          minimum: 1
+        priority:
+          type: string
+          enum: [low, medium, high]
+          default: medium
+        purpose:
+          type: string
+
+    AllocationResponse:
+      type: object
+      properties:
+        agent_id:
+          type: string
+        allocated_tokens:
+          type: integer
+        requested_tokens:
+          type: integer
+        allocation_ratio:
+          type: number
+        remaining_budget:
+          type: integer
+        allocation_id:
+          type: string
+
+    UsageStatistics:
+      type: object
+      properties:
+        timeframe:
+          type: string
+        total_allocated:
+          type: integer
+        total_consumed:
+          type: integer
+        efficiency_ratio:
+          type: number
+        by_agent:
+          type: array
+          items:
+            type: object
+            properties:
+              agent_id:
+                type: string
+              allocated:
+                type: integer
+              consumed:
+                type: integer
+              patterns_discovered:
+                type: integer
+              value_per_token:
+                type: number
+        by_hour:
+          type: array
+          items:
+            type: object
+            properties:
+              hour:
+                type: string
+                format: date-time
+              consumed:
+                type: integer
+
+    EfficiencyMetrics:
+      type: object
+      properties:
+        overall_efficiency:
+          type: number
+        patterns_per_token:
+          type: number
+        average_agent_efficiency:
+          type: number
+        top_performers:
+          type: array
+          items:
+            type: object
+            properties:
+              agent_id:
+                type: string
+              efficiency_score:
+                type: number
+        inefficient_agents:
+          type: array
+          items:
+            type: object
+            properties:
+              agent_id:
+                type: string
+              efficiency_score:
+                type: number
+              recommendation:
+                type: string
+
+    EvolutionConstraints:
+      type: object
+      properties:
+        min_diversity_threshold:
+          type: number
+          default: 0.3
+        max_generations_per_cycle:
+          type: integer
+          default: 100
+        max_population_size:
+          type: integer
+          default: 1000
+        max_tokens_per_agent:
+          type: integer
+        max_tokens_per_cycle:
+          type: integer
+        required_efficiency_ratio:
+          type: number
+          default: 0.5
+
+    UpdateConstraintsRequest:
+      type: object
+      properties:
+        min_diversity_threshold:
+          type: number
+        max_generations_per_cycle:
+          type: integer
+        max_population_size:
+          type: integer
+        max_tokens_per_agent:
+          type: integer
+        max_tokens_per_cycle:
+          type: integer
+        required_efficiency_ratio:
+          type: number
+
+    ValidationRequest:
+      type: object
+      required:
+        - population_size
+        - generations
+        - requested_budget
+      properties:
+        population_size:
+          type: integer
+        generations:
+          type: integer
+        requested_budget:
+          type: integer
+        current_diversity:
+          type: number
+
+    ValidationResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        violations:
+          type: array
+          items:
+            type: object
+            properties:
+              constraint:
+                type: string
+              current_value:
+                type: number
+              limit:
+                type: number
+              message:
+                type: string
+        approved_budget:
+          type: integer
+        recommendations:
+          type: array
+          items:
+            type: string
+
+    EvolutionCycleRequest:
+      type: object
+      required:
+        - population_ids
+        - generations
+        - token_budget
+      properties:
+        population_ids:
+          type: array
+          items:
+            type: string
+        generations:
+          type: integer
+        token_budget:
+          type: integer
+        diversity_threshold:
+          type: number
+        efficiency_target:
+          type: number
+
+    EvolutionCycleResponse:
+      type: object
+      properties:
+        cycle_id:
+          type: string
+        status:
+          type: string
+        allocated_budget:
+          type: integer
+        estimated_duration:
+          type: string
+        constraints_applied:
+          type: array
+          items:
+            type: string
+
+    CycleStatus:
+      type: object
+      properties:
+        cycle_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, failed, terminated]
+        current_generation:
+          type: integer
+        total_generations:
+          type: integer
+        tokens_consumed:
+          type: integer
+        tokens_remaining:
+          type: integer
+        current_diversity:
+          type: number
+        patterns_discovered:
+          type: integer
+        efficiency_ratio:
+          type: number
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+          nullable: true
+
+    Pattern:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        effectiveness:
+          type: number
+        discovered_by:
+          type: string
+        discovery_cost:
+          type: integer
+        usage_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    PatternList:
+      type: object
+      properties:
+        patterns:
+          type: array
+          items:
+            $ref: '#/components/schemas/Pattern'
+        total_patterns:
+          type: integer
+
+    RegisterPatternRequest:
+      type: object
+      required:
+        - name
+        - type
+        - discovered_by
+        - discovery_cost
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        discovered_by:
+          type: string
+        discovery_cost:
+          type: integer
+        initial_effectiveness:
+          type: number
+          default: 0.5
+
+    UpdateEffectivenessRequest:
+      type: object
+      required:
+        - new_effectiveness
+      properties:
+        new_effectiveness:
+          type: number
+          minimum: 0
+          maximum: 1
+        reason:
+          type: string
+
+    GovernanceRules:
+      type: object
+      properties:
+        efficiency_rules:
+          type: object
+          properties:
+            min_efficiency_ratio:
+              type: number
+            termination_threshold:
+              type: number
+            warning_threshold:
+              type: number
+        budget_rules:
+          type: object
+          properties:
+            max_allocation_per_agent:
+              type: number
+            min_value_per_token:
+              type: number
+            reallocation_frequency:
+              type: string
+        diversity_rules:
+          type: object
+          properties:
+            min_population_diversity:
+              type: number
+            intervention_threshold:
+              type: number
+
+    ViolationsList:
+      type: object
+      properties:
+        violations:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              timestamp:
+                type: string
+                format: date-time
+              rule:
+                type: string
+              violator:
+                type: string
+              severity:
+                type: string
+                enum: [low, medium, high, critical]
+              details:
+                type: object
+
+    EnforcementRequest:
+      type: object
+      required:
+        - action
+        - target
+      properties:
+        action:
+          type: string
+          enum: [terminate, reduce_budget, increase_mutation, force_diversity]
+        target:
+          type: string
+        reason:
+          type: string
+        parameters:
+          type: object
+
+    EnforcementResponse:
+      type: object
+      properties:
+        action:
+          type: string
+        target:
+          type: string
+        success:
+          type: boolean
+        result:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+tags:
+  - name: System
+    description: System health and status
+  - name: Economy
+    description: Token economy management
+  - name: Evolution
+    description: Evolution control and constraints
+  - name: Patterns
+    description: Pattern management
+  - name: Governance
+    description: Economic governance rules and enforcement

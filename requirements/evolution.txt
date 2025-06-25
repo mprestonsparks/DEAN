@@ -1,0 +1,18 @@
+# Evolution API Service Requirements
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+httpx==0.25.2
+sqlalchemy==2.0.23
+asyncpg==0.29.0
+redis==5.0.1
+numpy==1.26.2
+scipy==1.11.4
+deap==1.4.1  # Genetic algorithm framework
+prometheus-client==0.19.0
+python-multipart==0.0.6
+aiofiles==23.2.1
+
+# For diversity calculations
+scikit-learn==1.3.2
+networkx==3.2.1

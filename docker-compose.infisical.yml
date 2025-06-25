@@ -1,0 +1,148 @@
+# Infisical Security Platform Deployment
+version: '3.8'
+
+services:
+  postgres-infisical:
+    image: postgres:15-alpine
+    container_name: postgres-infisical
+    restart: always
+    environment:
+      POSTGRES_USER: infisical_user
+      POSTGRES_PASSWORD: ${INFISICAL_POSTGRES_PASSWORD}
+      POSTGRES_DB: infisical
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-infisical-data:/var/lib/postgresql/data
+      - ./docker/infisical/scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U infisical_user -d infisical"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - infisical-network
+    ports:
+      - "5433:5432"  # Different port to avoid conflict with DEAN postgres
+
+  redis-infisical:
+    image: redis:7-alpine
+    container_name: redis-infisical
+    restart: always
+    command: >
+      redis-server
+      --requirepass ${INFISICAL_REDIS_PASSWORD}
+      --appendonly yes
+      --appendfilename "infisical.aof"
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-infisical-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${INFISICAL_REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - infisical-network
+
+  infisical:
+    build:
+      context: .
+      dockerfile: docker/infisical/Dockerfile
+    container_name: infisical-server
+    restart: always
+    depends_on:
+      postgres-infisical:
+        condition: service_healthy
+      redis-infisical:
+        condition: service_healthy
+    environment:
+      # Database
+      INFISICAL_DB_CONNECTION_URI: postgresql://infisical_user:${INFISICAL_POSTGRES_PASSWORD}@postgres-infisical:5432/infisical
+      DB_CONNECTION_URI: postgresql://infisical_user:${INFISICAL_POSTGRES_PASSWORD}@postgres-infisical:5432/infisical
+      
+      # Redis
+      INFISICAL_REDIS_URL: redis://:${INFISICAL_REDIS_PASSWORD}@redis-infisical:6379
+      REDIS_URL: redis://:${INFISICAL_REDIS_PASSWORD}@redis-infisical:6379
+      REDIS_PASSWORD: ${INFISICAL_REDIS_PASSWORD}
+      
+      # Security Keys
+      ENCRYPTION_KEY: ${INFISICAL_ENCRYPTION_KEY}
+      AUTH_SECRET: ${INFISICAL_AUTH_SECRET}
+      JWT_AUTH_SECRET: ${INFISICAL_JWT_SECRET}
+      
+      # Server Configuration
+      INFISICAL_PUBLIC_URL: http://10.7.0.2:8090
+      PORT: 8090
+      SITE_URL: http://10.7.0.2:8090
+      
+      # Features
+      INFISICAL_TELEMETRY_ENABLED: "false"
+      TELEMETRY_ENABLED: "false"
+      INFISICAL_AIR_GAPPED: "true"
+      
+      # Initial setup
+      INFISICAL_DB_MIGRATE: "true"
+      INFISICAL_INITIAL_ADMIN_EMAIL: ${INFISICAL_ADMIN_EMAIL}
+      INFISICAL_INITIAL_ADMIN_PASSWORD: ${INFISICAL_ADMIN_PASSWORD}
+    ports:
+      - "8090:8090"
+    volumes:
+      - infisical-data:/app/data
+      - infisical-certs:/app/certs
+      - ./docker/infisical/config:/app/config:ro
+    networks:
+      - infisical-network
+      - dean-network  # Connect to DEAN network for service integration
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/api/status"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
+
+  # Infisical Agent for runtime secret injection
+  infisical-agent:
+    image: infisical/cli:latest
+    container_name: infisical-agent
+    restart: always
+    depends_on:
+      infisical:
+        condition: service_healthy
+    environment:
+      INFISICAL_API_URL: http://infisical:8090/api
+      INFISICAL_TOKEN: ${INFISICAL_AGENT_TOKEN}
+      INFISICAL_PROJECT_ID: ${INFISICAL_DEAN_PROJECT_ID}
+      INFISICAL_ENVIRONMENT: production
+    command: agent --config /app/agent-config.yaml
+    volumes:
+      - ./docker/infisical/config/agent-config.yaml:/app/agent-config.yaml:ro
+      - infisical-agent-cache:/app/cache
+    networks:
+      - infisical-network
+      - dean-network
+    healthcheck:
+      test: ["CMD", "infisical", "secrets", "test"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres-infisical-data:
+    driver: local
+  redis-infisical-data:
+    driver: local
+  infisical-data:
+    driver: local
+  infisical-certs:
+    driver: local
+  infisical-agent-cache:
+    driver: local
+
+networks:
+  infisical-network:
+    driver: bridge
+    name: infisical-network
+  dean-network:
+    external: true
+    name: dean-network

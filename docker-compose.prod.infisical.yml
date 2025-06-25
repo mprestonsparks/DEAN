@@ -1,0 +1,398 @@
+# DEAN Production Deployment with Infisical Security
+version: '3.8'
+
+x-infisical-agent: &infisical-agent
+  image: infisical/cli:latest
+  environment:
+    INFISICAL_API_URL: http://infisical:8090/api
+    INFISICAL_ENVIRONMENT: production
+  volumes:
+    - infisical-secrets:/run/secrets:rw
+  command: >
+    sh -c "
+    infisical run --env=production --path=/dean/common -- env > /run/secrets/common.env &&
+    infisical run --env=production --path=/dean/database -- env > /run/secrets/database.env &&
+    infisical run --env=production --path=/dean/redis -- env > /run/secrets/redis.env &&
+    tail -f /dev/null
+    "
+  depends_on:
+    infisical:
+      condition: service_healthy
+  networks:
+    - dean-network
+
+services:
+  # Infisical agent sidecar for secret injection
+  infisical-agent-init:
+    <<: *infisical-agent
+    container_name: infisical-agent-init
+    environment:
+      INFISICAL_API_URL: http://infisical:8090/api
+      INFISICAL_TOKEN: ${INFISICAL_AGENT_TOKEN}
+      INFISICAL_PROJECT_ID: ${INFISICAL_DEAN_PROJECT_ID}
+      INFISICAL_ENVIRONMENT: production
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: dean-postgres
+    restart: always
+    env_file:
+      - /run/secrets/database.env
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+      - infisical-secrets:/run/secrets:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      infisical-agent-init:
+        condition: service_started
+    networks:
+      - dean-network
+      
+  redis:
+    image: redis:7-alpine
+    container_name: dean-redis
+    restart: always
+    volumes:
+      - redis-data:/data
+      - infisical-secrets:/run/secrets:ro
+    command: sh -c ". /run/secrets/redis.env && redis-server --appendonly yes --requirepass $${REDIS_PASSWORD}"
+    healthcheck:
+      test: ["CMD", "sh", "-c", ". /run/secrets/redis.env && redis-cli --no-auth-warning -a $${REDIS_PASSWORD} ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      infisical-agent-init:
+        condition: service_started
+    networks:
+      - dean-network
+      
+  dean-orchestration:
+    image: dean/orchestration:latest
+    container_name: dean-orchestration
+    restart: always
+    ports:
+      - "${DEAN_SERVER_PORT:-8082}:8082"
+      - "${DEAN_WEB_PORT:-8083}:8083"
+    volumes:
+      - infisical-secrets:/run/secrets:ro
+      - ./docker/infisical/certs:/app/certs:ro
+    environment:
+      INFISICAL_ENABLED: "true"
+      INFISICAL_API_URL: http://infisical:8090/api
+    command: >
+      sh -c "
+      infisical run --env=production --path=/dean/orchestration -- 
+      infisical run --env=production --path=/dean/database -- 
+      infisical run --env=production --path=/dean/redis -- 
+      python -m dean_orchestration.server
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      infisical-agent-init:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - dean-network
+      
+  dean-orchestration-agent:
+    <<: *infisical-agent
+    container_name: dean-orchestration-agent
+    environment:
+      INFISICAL_API_URL: http://infisical:8090/api
+      INFISICAL_TOKEN: ${DEAN_ORCHESTRATION_SERVICE_TOKEN}
+    command: >
+      sh -c "
+      infisical run --env=production --path=/dean/orchestration -- env > /run/secrets/orchestration.env &&
+      infisical run --env=production --path=/dean/pki/services/dean-orchestration -- env > /run/secrets/dean-orchestration-tls.env &&
+      tail -f /dev/null
+      "
+      
+  indexagent:
+    image: dean/indexagent:latest
+    container_name: indexagent
+    restart: always
+    ports:
+      - "${INDEXAGENT_PORT:-8081}:8081"
+    volumes:
+      - infisical-secrets:/run/secrets:ro
+      - ./docker/infisical/certs:/app/certs:ro
+    environment:
+      INFISICAL_ENABLED: "true"
+      INFISICAL_API_URL: http://infisical:8090/api
+    command: >
+      sh -c "
+      infisical run --env=production --path=/dean/indexagent -- 
+      infisical run --env=production --path=/dean/database -- 
+      infisical run --env=production --path=/dean/redis -- 
+      infisical run --env=production --path=/dean/external -- 
+      python main.py
+      "
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      indexagent-agent:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - dean-network
+      
+  indexagent-agent:
+    <<: *infisical-agent
+    container_name: indexagent-agent
+    environment:
+      INFISICAL_API_URL: http://infisical:8090/api
+      INFISICAL_TOKEN: ${INDEXAGENT_SERVICE_TOKEN}
+    command: >
+      sh -c "
+      infisical run --env=production --path=/dean/indexagent -- env > /run/secrets/indexagent.env &&
+      infisical run --env=production --path=/dean/pki/services/indexagent -- env > /run/secrets/indexagent-tls.env &&
+      tail -f /dev/null
+      "
+        
+  evolution-api:
+    image: dean/evolution-api:latest
+    container_name: evolution-api
+    restart: always
+    ports:
+      - "${EVOLUTION_PORT:-8090}:8090"
+    volumes:
+      - infisical-secrets:/run/secrets:ro
+      - ./docker/infisical/certs:/app/certs:ro
+    environment:
+      INFISICAL_ENABLED: "true"
+      INFISICAL_API_URL: http://infisical:8090/api
+    command: >
+      sh -c "
+      infisical run --env=production --path=/dean/evolution -- 
+      infisical run --env=production --path=/dean/database -- 
+      infisical run --env=production --path=/dean/redis -- 
+      python main.py
+      "
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      evolution-agent:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - dean-network
+      
+  evolution-agent:
+    <<: *infisical-agent
+    container_name: evolution-agent
+    environment:
+      INFISICAL_API_URL: http://infisical:8090/api
+      INFISICAL_TOKEN: ${EVOLUTION_SERVICE_TOKEN}
+    command: >
+      sh -c "
+      infisical run --env=production --path=/dean/evolution -- env > /run/secrets/evolution.env &&
+      infisical run --env=production --path=/dean/pki/services/evolution-api -- env > /run/secrets/evolution-tls.env &&
+      tail -f /dev/null
+      "
+          
+  airflow-webserver:
+    image: dean/airflow:latest
+    container_name: airflow-webserver
+    restart: always
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/plugins:/opt/airflow/plugins
+      - airflow-logs:/opt/airflow/logs
+      - infisical-secrets:/run/secrets:ro
+      - ./docker/infisical/certs:/app/certs:ro
+    environment:
+      INFISICAL_ENABLED: "true"
+      INFISICAL_API_URL: http://infisical:8090/api
+      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: admin
+    command: >
+      sh -c "
+      infisical run --env=production --path=/dean/airflow -- 
+      infisical run --env=production --path=/dean/database -- 
+      airflow webserver
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-agent:
+        condition: service_started
+    networks:
+      - dean-network
+      
+  airflow-agent:
+    <<: *infisical-agent
+    container_name: airflow-agent
+    environment:
+      INFISICAL_API_URL: http://infisical:8090/api
+      INFISICAL_TOKEN: ${AIRFLOW_SERVICE_TOKEN}
+    command: >
+      sh -c "
+      infisical run --env=production --path=/dean/airflow -- env > /run/secrets/airflow.env &&
+      infisical run --env=production --path=/dean/pki/services/airflow-webserver -- env > /run/secrets/airflow-tls.env &&
+      tail -f /dev/null
+      "
+        
+  airflow-scheduler:
+    image: dean/airflow:latest
+    container_name: airflow-scheduler
+    restart: always
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/plugins:/opt/airflow/plugins
+      - airflow-logs:/opt/airflow/logs
+      - infisical-secrets:/run/secrets:ro
+    environment:
+      INFISICAL_ENABLED: "true"
+      INFISICAL_API_URL: http://infisical:8090/api
+    command: >
+      sh -c "
+      infisical run --env=production --path=/dean/airflow -- 
+      infisical run --env=production --path=/dean/database -- 
+      airflow scheduler
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-webserver:
+        condition: service_started
+    networks:
+      - dean-network
+        
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: always
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      - prometheus-data:/prometheus
+      - infisical-secrets:/run/secrets:ro
+      - ./docker/infisical/certs:/app/certs:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.retention.time=30d'
+    depends_on:
+      - dean-orchestration
+      - indexagent
+      - evolution-api
+      - prometheus-agent
+    networks:
+      - dean-network
+      
+  prometheus-agent:
+    <<: *infisical-agent
+    container_name: prometheus-agent
+    environment:
+      INFISICAL_API_URL: http://infisical:8090/api
+      INFISICAL_TOKEN: ${PROMETHEUS_SERVICE_TOKEN}
+    command: >
+      sh -c "
+      infisical run --env=production --path=/dean/monitoring/prometheus -- env > /run/secrets/prometheus.env &&
+      infisical run --env=production --path=/dean/pki/services/prometheus -- env > /run/secrets/prometheus-tls.env &&
+      tail -f /dev/null
+      "
+      
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: always
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+      - infisical-secrets:/run/secrets:ro
+      - ./docker/infisical/certs:/app/certs:ro
+    environment:
+      INFISICAL_ENABLED: "true"
+      GF_SECURITY_ADMIN_USER: admin
+    command: >
+      sh -c "
+      . /run/secrets/grafana.env &&
+      /run.sh
+      "
+    depends_on:
+      - prometheus
+      - grafana-agent
+    networks:
+      - dean-network
+      
+  grafana-agent:
+    <<: *infisical-agent
+    container_name: grafana-agent
+    environment:
+      INFISICAL_API_URL: http://infisical:8090/api
+      INFISICAL_TOKEN: ${GRAFANA_SERVICE_TOKEN}
+    command: >
+      sh -c "
+      infisical run --env=production --path=/dean/monitoring/grafana -- env > /run/secrets/grafana.env &&
+      infisical run --env=production --path=/dean/pki/services/grafana -- env > /run/secrets/grafana-tls.env &&
+      tail -f /dev/null
+      "
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  airflow-logs:
+    driver: local
+  infisical-secrets:
+    driver: local
+
+networks:
+  dean-network:
+    external: true
+    name: dean-network
