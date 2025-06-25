@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEAN Evolution Dashboard</title>
+    <link rel="stylesheet" href="css/dashboard.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <h1 class="app-title">DEAN Evolution Dashboard</h1>
+                <div class="header-actions">
+                    <span id="connection-status" class="connection-status disconnected">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Disconnected</span>
+                    </span>
+                    <button id="auth-btn" class="btn btn-secondary">Login</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="app-nav">
+            <ul class="nav-list">
+                <li><a href="#overview" class="nav-link active" data-page="overview">Overview</a></li>
+                <li><a href="#create" class="nav-link" data-page="create">Create Trial</a></li>
+                <li><a href="#history" class="nav-link" data-page="history">History</a></li>
+                <li><a href="#patterns" class="nav-link" data-page="patterns">Patterns</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="app-content">
+            <!-- Overview Page -->
+            <section id="overview-page" class="page active">
+                <div class="page-header">
+                    <h2>Active Evolution Trials</h2>
+                    <button id="refresh-trials" class="btn btn-primary">
+                        <span class="icon">↻</span> Refresh
+                    </button>
+                </div>
+                
+                <div class="trials-grid" id="active-trials">
+                    <!-- Trial cards will be inserted here -->
+                </div>
+
+                <div class="empty-state" id="no-trials" style="display: none;">
+                    <div class="empty-icon">🧬</div>
+                    <h3>No Active Trials</h3>
+                    <p>Start a new evolution trial to begin experimenting</p>
+                    <button class="btn btn-primary" onclick="showPage('create')">Create Trial</button>
+                </div>
+            </section>
+
+            <!-- Create Trial Page -->
+            <section id="create-page" class="page">
+                <div class="page-header">
+                    <h2>Create Evolution Trial</h2>
+                </div>
+                
+                <form id="create-trial-form" class="trial-form">
+                    <div class="form-section">
+                        <h3>Population Settings</h3>
+                        
+                        <div class="form-group">
+                            <label for="population-size">Population Size</label>
+                            <input type="number" id="population-size" min="1" max="100" value="10" required>
+                            <small class="form-help">Number of agents in the population (1-100)</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="generations">Generations</label>
+                            <input type="number" id="generations" min="1" max="1000" value="50" required>
+                            <small class="form-help">Number of evolution generations (1-1000)</small>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>Resource Settings</h3>
+                        
+                        <div class="form-group">
+                            <label for="token-budget">Token Budget</label>
+                            <input type="number" id="token-budget" min="1000" max="1000000" value="100000" required>
+                            <small class="form-help">Total tokens available for the trial</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="diversity-threshold">Diversity Threshold</label>
+                            <input type="number" id="diversity-threshold" min="0.1" max="1.0" step="0.1" value="0.3" required>
+                            <small class="form-help">Minimum genetic diversity to maintain (0.1-1.0)</small>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary btn-large">Start Evolution Trial</button>
+                        <button type="button" class="btn btn-secondary" onclick="showPage('overview')">Cancel</button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Trial Detail Modal -->
+            <div id="trial-detail-modal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 id="trial-detail-title">Trial Details</h2>
+                        <button class="modal-close" onclick="closeTrialDetail()">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="trial-metrics">
+                            <div class="metric-card">
+                                <h4>Progress</h4>
+                                <div class="progress-bar">
+                                    <div id="trial-progress-bar" class="progress-fill"></div>
+                                </div>
+                                <p id="trial-progress-text">0 / 0 generations</p>
+                            </div>
+                            
+                            <div class="metric-card">
+                                <h4>Best Fitness</h4>
+                                <div class="metric-value" id="trial-best-fitness">0.00</div>
+                            </div>
+                            
+                            <div class="metric-card">
+                                <h4>Diversity Index</h4>
+                                <div class="metric-value" id="trial-diversity">0.00</div>
+                            </div>
+                            
+                            <div class="metric-card">
+                                <h4>Token Usage</h4>
+                                <div class="metric-value" id="trial-token-usage">0</div>
+                                <small id="trial-token-budget">of 0</small>
+                            </div>
+                        </div>
+
+                        <div class="charts-grid">
+                            <div class="chart-container">
+                                <h4>Fitness Over Time</h4>
+                                <canvas id="fitness-chart"></canvas>
+                            </div>
+                            
+                            <div class="chart-container">
+                                <h4>Diversity Trend</h4>
+                                <canvas id="diversity-chart"></canvas>
+                            </div>
+                            
+                            <div class="chart-container">
+                                <h4>Token Consumption</h4>
+                                <canvas id="token-chart"></canvas>
+                            </div>
+                            
+                            <div class="chart-container">
+                                <h4>Pattern Discoveries</h4>
+                                <canvas id="pattern-chart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="trial-actions">
+                            <button id="cancel-trial-btn" class="btn btn-danger" onclick="cancelTrial()">Cancel Trial</button>
+                            <button class="btn btn-secondary" onclick="closeTrialDetail()">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Page -->
+            <section id="history-page" class="page">
+                <div class="page-header">
+                    <h2>Trial History</h2>
+                    <div class="filter-controls">
+                        <select id="history-filter" class="form-select">
+                            <option value="">All Trials</option>
+                            <option value="completed">Completed</option>
+                            <option value="failed">Failed</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="history-table-container">
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>Trial ID</th>
+                                <th>Started</th>
+                                <th>Duration</th>
+                                <th>Population</th>
+                                <th>Generations</th>
+                                <th>Best Fitness</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-tbody">
+                            <!-- History rows will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Patterns Page -->
+            <section id="patterns-page" class="page">
+                <div class="page-header">
+                    <h2>Discovered Patterns</h2>
+                </div>
+                
+                <div class="patterns-grid" id="patterns-container">
+                    <!-- Pattern cards will be inserted here -->
+                </div>
+            </section>
+        </main>
+
+        <!-- Authentication Modal -->
+        <div id="auth-modal" class="modal">
+            <div class="modal-content modal-small">
+                <div class="modal-header">
+                    <h2>Authentication</h2>
+                    <button class="modal-close" onclick="closeAuthModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="auth-form">
+                        <div class="form-group">
+                            <label for="auth-token">JWT Token</label>
+                            <textarea id="auth-token" rows="4" placeholder="Paste your JWT token here" required></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Authenticate</button>
+                            <button type="button" class="btn btn-secondary" onclick="closeAuthModal()">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div id="toast-container" class="toast-container"></div>
+    </div>
+
+    <!-- JavaScript Files -->
+    <script src="js/api-client.js"></script>
+    <script src="js/websocket-client.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/trial-manager.js"></script>
+    <script>
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeApp();
+        });
+    </script>
+</body>
+</html>
