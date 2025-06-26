@@ -1,0 +1,39 @@
+{
+  "timestamp": "2025-06-26T10:54:12.603872",
+  "generations": 5,
+  "agents": 5,
+  "fitness_progression": [
+    0.10549777421827282,
+    0.2559379021684123,
+    0.30240864220304287,
+    0.4406634829557495,
+    0.5062546592008144
+  ],
+  "diversity_progression": [
+    0.3605434574143258,
+    0.36796787423003197,
+    0.34753763954723643,
+    0.3,
+    0.3068931428346661
+  ],
+  "patterns_discovered": [
+    {
+      "generation": 2,
+      "type": "optimization",
+      "effectiveness": 0.8,
+      "description": "Pattern discovered in generation 2"
+    },
+    {
+      "generation": 4,
+      "type": "efficiency",
+      "effectiveness": 1.0,
+      "description": "Pattern discovered in generation 4"
+    }
+  ],
+  "tokens_allocated": 25000,
+  "final_metrics": {
+    "best_fitness": 0.5062546592008144,
+    "final_diversity": 0.3068931428346661,
+    "patterns_count": 2
+  }
+}
