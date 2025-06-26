@@ -1,0 +1,18 @@
+{
+  "timestamp": "2025-06-25T21:37:57.600652",
+  "summary": {
+    "total": 7,
+    "passed": 2,
+    "failed": 5,
+    "success_rate": 28.57142857142857
+  },
+  "tests": {
+    "Service Health": true,
+    "Agent Creation": false,
+    "Evolution Trial": true,
+    "Pattern Discovery": false,
+    "Token Economy": false,
+    "Metrics Collection": false,
+    "Database Data": false
+  }
+}

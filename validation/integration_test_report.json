@@ -1,0 +1,24 @@
+{
+  "timestamp": "2025-06-25T21:43:23.175976",
+  "summary": {
+    "total_tests": 7,
+    "passed": 2,
+    "failed": 5,
+    "success_rate": 28.57142857142857
+  },
+  "results": {
+    "service_health": true,
+    "agent_creation": true,
+    "evolution_trial": false,
+    "token_economy": false,
+    "database_metrics": false,
+    "pattern_discovery": false,
+    "prometheus_metrics": false
+  },
+  "agent_ids": [
+    "d666dd21-9bf9-46b0-b35a-51c1d3317c1c",
+    "f97c6782-5906-4d9a-a958-c39f681f3b60",
+    "715dd7e8-135a-4b55-adbc-c7475952dfa1"
+  ],
+  "evolution_id": null
+}

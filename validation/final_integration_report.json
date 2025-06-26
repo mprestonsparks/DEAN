@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-06-25T21:44:50.430264",
+  "summary": {
+    "total_tests": 7,
+    "passed": 3,
+    "failed": 4,
+    "success_rate": 42.857142857142854
+  },
+  "results": {
+    "service_health": true,
+    "agent_operations": true,
+    "evolution_api": false,
+    "evolution_cycle": false,
+    "pattern_discovery": false,
+    "diversity_check": false,
+    "metrics_endpoints": true
+  },
+  "system_info": {
+    "agent_created": "c07ed6f1-e757-4d0d-9a11-ceb34338b412",
+    "evolution_cycle": null
+  }
+}

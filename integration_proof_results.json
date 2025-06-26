@@ -1,0 +1,48 @@
+{
+  "timestamp": "2025-06-26T02:35:41.286494",
+  "tests": {
+    "evolution_uniqueness": {
+      "passed": false,
+      "error": "No module named 'asyncpg'"
+    },
+    "cellular_automata": {
+      "passed": false,
+      "message": "Rule 110 did not increase exploration",
+      "data": {
+        "initial": 0.5,
+        "final": 0.34093750000000006,
+        "change": 3.6140625
+      }
+    },
+    "pattern_discovery": {
+      "passed": false,
+      "error": "No module named 'sqlalchemy'"
+    },
+    "token_economy": {
+      "passed": true,
+      "message": "Token economy stopped 5 agents when budget exhausted",
+      "data": {
+        "global_budget": 10000,
+        "running_agents": 5,
+        "stopped_agents": 5,
+        "expected_running": 5
+      }
+    },
+    "metrics_authenticity": {
+      "passed": true,
+      "message": "Metrics show 1.23ms of real computation",
+      "data": {
+        "computation_time_ms": 1.2269020080566406,
+        "items_processed": 10000,
+        "result_hash": 3999676115439268665
+      }
+    }
+  },
+  "evidence": [],
+  "summary": {
+    "total_tests": 5,
+    "passed": 2,
+    "failed": 3,
+    "success_rate": 40.0
+  }
+}
