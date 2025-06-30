@@ -169,7 +169,7 @@ jobs:
           echo "Documentation update would happen here"
           
       - name: Notify team
-        uses: slackapi/slack-github-action@v1
+        uses: slackapi/slack-github-action@v2
         with:
           payload: |
             {
