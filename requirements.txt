@@ -17,7 +17,7 @@ aiofiles==23.2.1
 
 # Database
 sqlalchemy==2.0.23
-alembic==1.13.0
+alembic==1.16.4
 asyncpg==0.29.0
 psycopg2-binary==2.9.9
 
